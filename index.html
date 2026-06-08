@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Philadelphia Legal Resources Dashboard</title>
     
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
     
     <style>
         /* Modern & Serious Color Palette & Layout */
@@ -187,7 +186,6 @@
 <body>
 
     <div id="dashboard">
-        <!-- Left Panel Listing -->
         <div id="sidebar">
             <div class="sidebar-header">
                 <h1>Legal Services Directory</h1>
@@ -197,25 +195,23 @@
                 <input type="text" id="search" class="search-input" placeholder="Search resources by name or phone...">
             </div>
             <div id="list" class="list-container">
-                <!-- Dynamically generated list cards will render here -->
-            </div>
+                </div>
         </div>
         
-        <!-- Right Map Viewport -->
         <div id="map"></div>
     </div>
 
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
     
     <script>
         // Initialize Map centered dynamically over Greater Philadelphia region
         const map = L.map('map').setView([39.9526, -75.1652], 12);
 
-        // Add Base OpenStreetMap Layer
+        // Add Base OpenStreetMap Layer over Fully Secure HTTPS Protocol
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            crossOrigin: true,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
         }).addTo(map);
 
         const csvUrl = 'https://raw.githubusercontent.com/abornn-web/Philadelphia-Legal-Resources/refs/heads/main/Git%20Legal%20Resource%20Data_Base%20-%20Legal%20Resource%20(1).csv';
@@ -224,44 +220,76 @@
         let markersGroup = L.layerGroup().addTo(map);
         const markerMap = new Map();
 
-        // High-fidelity standard CSV parser routine to strip quotes and delineate commas safely
+        // Standardized, State-Machine CSV Parser targeting row offsets, embedded breaks, and complex structural nesting
         function parseCSV(text) {
-            const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-            if (lines.length === 0) return [];
-            
-            const parseLine = (line) => {
-                const result = [];
-                let current = '';
-                let inQuotes = false;
-                for (let i = 0; i < line.length; i++) {
-                    const char = line[i];
-                    if (char === '"' || char === "'") {
-                        inQuotes = !inQuotes;
-                    } else if (char === ',' && !inQuotes) {
-                        result.push(current.trim().replace(/^["']|["']$/g, ''));
-                        current = '';
-                    } else {
-                        current += char;
-                    }
-                }
-                result.push(current.trim().replace(/^["']|["']$/g, ''));
-                return result;
-            };
+            const lines = [];
+            let row = [""];
+            let inQuotes = false;
 
-            const headers = parseLine(lines[0]).map(h => h.toLowerCase().trim());
-            return lines.slice(1).map((line, idx) => {
-                const values = parseLine(line);
+            for (let i = 0; i < text.length; i++) {
+                const c = text[i];
+                const next = text[i+1];
+
+                if (c === '"' || c === "'") {
+                    if (inQuotes && next === c) {
+                        // Handle escaped double-quotes safely ("")
+                        row[row.length - 1] += c;
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (c === ',' && !inQuotes) {
+                    row.push('');
+                } else if ((c === '\r' || c === '\n') && !inQuotes) {
+                    if (c === '\r' && next === '\n') {
+                        i++;
+                    }
+                    lines.push(row);
+                    row = [''];
+                } else {
+                    row[row.length - 1] += c;
+                }
+            }
+            if (row.length > 1 || row[0] !== '') {
+                lines.push(row);
+            }
+
+            if (lines.length === 0) return [];
+
+            // Strip out hidden Byte Order Marks (\ufeff) or casing variances from headers
+            const headers = lines[0].map(h => h.toLowerCase().trim().replace(/^\ufeff/, ''));
+            
+            return lines.slice(1).map((values, idx) => {
                 const obj = { id: idx }; 
                 headers.forEach((header, index) => {
-                    obj[header] = values[index] || '';
+                    if (header) {
+                        obj[header] = values[index] !== undefined ? values[index].trim() : '';
+                    }
                 });
                 return obj;
             });
         }
 
-        // Fetch source CSV resource
+        // Standardized sanitizer to neutralize leading-zero padding anomalies and quotes on numeric parsing
+        function sanitizeCoordinate(val) {
+            if (val === undefined || val === null) return NaN;
+            // Clean out remaining quotes or structural wrapping
+            let cleaned = String(val).replace(/^["']|["']$/g, '').trim();
+            if (!cleaned) return NaN;
+            
+            // Regex handles leading zero trims cleanly without mutating decimal values (e.g. "039.95" -> "39.95", "-075.16" -> "-75.16")
+            cleaned = cleaned.replace(/^(-?)0+(?=\d)/, '$1');
+            
+            const parsed = parseFloat(cleaned);
+            return isNaN(parsed) ? NaN : parsed;
+        }
+
+        // Fetch source CSV resource securely
         fetch(csvUrl)
-            .then(response => response.text())
+            .then(response => {
+                if (!response.ok) throw new Error(`Network tracking rejected request: ${response.status}`);
+                return response.text();
+            })
             .then(csvText => {
                 const rawData = parseCSV(csvText);
                 if (rawData.length === 0) return;
@@ -273,13 +301,13 @@
                 const latKey = keys.find(k => k === 'lat' || k.includes('latitude') || k === 'y');
                 const lngKey = keys.find(k => k === 'lng' || k.includes('long') || k.includes('longitude') || k === 'x');
 
-                // Normalize structure
+                // Normalize data collection structure safely
                 providersData = rawData.map(item => ({
                     id: item.id,
                     name: item[nameKey] || 'Unnamed Provider',
                     phone: item[phoneKey] || 'No phone provided',
-                    lat: parseFloat(item[latKey]),
-                    lng: parseFloat(item[lngKey])
+                    lat: sanitizeCoordinate(item[latKey]),
+                    lng: sanitizeCoordinate(item[lngKey])
                 }));
 
                 renderDashboard(providersData);
