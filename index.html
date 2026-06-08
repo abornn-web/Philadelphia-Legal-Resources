@@ -8,16 +8,16 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
     
     <style>
-        /* Modern & Serious Color Palette & Layout */
+        /* Modern, Serious Institutional Palette */
         :root {
             --bg-primary: #ffffff;
             --bg-sidebar: #f8fafc;
-            --border-color: #e2e8f0;
+            --border-color: #cbd5e1;
             --text-main: #0f172a;
-            --text-muted: #64748b;
+            --text-muted: #475569;
             --accent-color: #1e3a8a; /* Slate / Deep Blue */
-            --accent-light: #eff6ff;
-            --search-bg: #ffffff;
+            --accent-light: #f0fdf4; /* Light green highlight tint for matches */
+            --card-active-bg: #f1f5f9;
         }
 
         * {
@@ -41,7 +41,7 @@
         }
 
         #sidebar {
-            width: 400px;
+            width: 420px;
             height: 100%;
             background-color: var(--bg-sidebar);
             border-right: 1px solid var(--border-color);
@@ -82,8 +82,6 @@
             border: 1px solid var(--border-color);
             border-radius: 6px;
             font-size: 0.9rem;
-            background-color: var(--search-bg);
-            color: var(--text-main);
             outline: none;
             transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
@@ -99,6 +97,7 @@
             padding: 16px 24px;
         }
 
+        /* Interactive Dynamic Information Cards */
         .provider-card {
             background: white;
             border: 1px solid var(--border-color);
@@ -111,39 +110,67 @@
 
         .provider-card:hover {
             border-color: var(--text-muted);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
         }
 
         .provider-card.active {
             border-left: 4px solid var(--accent-color);
-            background-color: var(--accent-light);
-            border-color: var(--border-color);
+            background-color: var(--card-active-bg);
         }
 
         .provider-name {
-            font-size: 0.95rem;
+            font-size: 1rem;
             font-weight: 600;
             color: var(--text-main);
             margin-bottom: 6px;
             line-height: 1.4;
         }
 
-        .provider-phone {
+        .provider-meta-primary {
             font-size: 0.85rem;
             color: var(--text-muted);
+            margin-bottom: 4px;
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 6px;
         }
 
-        .provider-phone a {
+        .provider-meta-primary a {
             color: var(--accent-color);
             text-decoration: none;
             font-weight: 500;
         }
 
-        .provider-phone a:hover {
+        .provider-meta-primary a:hover {
             text-decoration: underline;
+        }
+
+        /* Collapsible Metadata Panel containing all compiled information fields */
+        .provider-details-panel {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px dashed var(--border-color);
+            font-size: 0.8rem;
+            display: none; /* Shown dynamically when active */
+        }
+
+        .provider-card.active .provider-details-panel {
+            display: block;
+        }
+
+        .info-row {
+            margin-bottom: 6px;
+            line-height: 1.4;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: var(--text-main);
+            text-transform: capitalize;
+        }
+
+        .info-value {
+            color: var(--text-muted);
         }
 
         #map {
@@ -151,35 +178,33 @@
             height: 100%;
         }
 
-        /* Clean Popups styling */
+        /* Stylized Interactive Map Popups */
         .leaflet-popup-content-wrapper {
             border-radius: 6px;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            font-family: inherit;
+            padding: 6px;
+            max-width: 320px;
         }
+        
+        .popup-scroll-container {
+            max-height: 200px;
+            overflow-y: auto;
+            padding-right: 4px;
+            font-size: 0.8rem;
+        }
+
         .popup-title {
             font-weight: 600;
             font-size: 0.95rem;
-            margin-bottom: 4px;
-            color: var(--text-main);
-        }
-        .popup-detail {
-            font-size: 0.85rem;
-            color: var(--text-muted);
+            margin-bottom: 6px;
+            color: var(--accent-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 4px;
         }
 
-        /* Responsive Breakpoint for Mobile Layouts */
         @media (max-width: 768px) {
-            #dashboard {
-                flex-direction: column-reverse;
-            }
-            #sidebar {
-                width: 100%;
-                height: 45%;
-            }
-            #map {
-                height: 55%;
-            }
+            #dashboard { flex-direction: column-reverse; }
+            #sidebar { width: 100%; height: 45%; }
+            #map { height: 55%; }
         }
     </style>
 </head>
@@ -192,26 +217,24 @@
                 <p>Philadelphia Regional Resources Map</p>
             </div>
             <div class="search-container">
-                <input type="text" id="search" class="search-input" placeholder="Search resources by name or phone...">
+                <input type="text" id="search" class="search-input" placeholder="Search by name, phone, address, services...">
             </div>
             <div id="list" class="list-container">
                 </div>
         </div>
-        
         <div id="map"></div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
     
     <script>
-        // Initialize Map centered dynamically over Greater Philadelphia region
+        // Initialize Map layout centered on Greater Philadelphia
         const map = L.map('map').setView([39.9526, -75.1652], 12);
 
-        // Add Base OpenStreetMap Layer over Fully Secure HTTPS Protocol
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             crossOrigin: true,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
         }).addTo(map);
 
         const csvUrl = 'https://raw.githubusercontent.com/abornn-web/Philadelphia-Legal-Resources/refs/heads/main/Git%20Legal%20Resource%20Data_Base%20-%20Legal%20Resource%20(1).csv';
@@ -220,7 +243,7 @@
         let markersGroup = L.layerGroup().addTo(map);
         const markerMap = new Map();
 
-        // Standardized, State-Machine CSV Parser targeting row offsets, embedded breaks, and complex structural nesting
+        // High-Fidelity Character State-Machine CSV Parser (Supports long rows, breaks, and embedded quotes)
         function parseCSV(text) {
             const lines = [];
             let row = [""];
@@ -232,7 +255,6 @@
 
                 if (c === '"' || c === "'") {
                     if (inQuotes && next === c) {
-                        // Handle escaped double-quotes safely ("")
                         row[row.length - 1] += c;
                         i++;
                     } else {
@@ -241,80 +263,103 @@
                 } else if (c === ',' && !inQuotes) {
                     row.push('');
                 } else if ((c === '\r' || c === '\n') && !inQuotes) {
-                    if (c === '\r' && next === '\n') {
-                        i++;
-                    }
+                    if (c === '\r' && next === '\n') i++;
                     lines.push(row);
                     row = [''];
                 } else {
                     row[row.length - 1] += c;
                 }
             }
-            if (row.length > 1 || row[0] !== '') {
-                lines.push(row);
-            }
-
+            if (row.length > 1 || row[0] !== '') lines.push(row);
             if (lines.length === 0) return [];
 
-            // Strip out hidden Byte Order Marks (\ufeff) or casing variances from headers
             const headers = lines[0].map(h => h.toLowerCase().trim().replace(/^\ufeff/, ''));
             
             return lines.slice(1).map((values, idx) => {
-                const obj = { id: idx }; 
+                const obj = { _rawRow: {} }; 
                 headers.forEach((header, index) => {
                     if (header) {
-                        obj[header] = values[index] !== undefined ? values[index].trim() : '';
+                        const val = values[index] !== undefined ? values[index].trim() : '';
+                        obj[header] = val;
+                        obj._rawRow[header] = val; // Hold onto exact key matching for data extraction panels
                     }
                 });
                 return obj;
             });
         }
 
-        // Standardized sanitizer to neutralize leading-zero padding anomalies and quotes on numeric parsing
+        // Standardized numeric cleanser handling leading zero paddings (e.g., "039.95" -> 39.95)
         function sanitizeCoordinate(val) {
-            if (val === undefined || val === null) return NaN;
-            // Clean out remaining quotes or structural wrapping
+            if (!val) return NaN;
             let cleaned = String(val).replace(/^["']|["']$/g, '').trim();
-            if (!cleaned) return NaN;
-            
-            // Regex handles leading zero trims cleanly without mutating decimal values (e.g. "039.95" -> "39.95", "-075.16" -> "-75.16")
             cleaned = cleaned.replace(/^(-?)0+(?=\d)/, '$1');
-            
             const parsed = parseFloat(cleaned);
             return isNaN(parsed) ? NaN : parsed;
         }
 
-        // Fetch source CSV resource securely
         fetch(csvUrl)
             .then(response => {
-                if (!response.ok) throw new Error(`Network tracking rejected request: ${response.status}`);
+                if (!response.ok) throw new Error("Database file response error.");
                 return response.text();
             })
             .then(csvText => {
                 const rawData = parseCSV(csvText);
                 if (rawData.length === 0) return;
 
-                // Identify column keys intelligently by evaluating schema variations
-                const keys = Object.keys(rawData[0]);
-                const nameKey = keys.find(k => k.includes('name') || k.includes('org') || k.includes('resource') || k.includes('title') || k.includes('provider')) || keys[1];
-                const phoneKey = keys.find(k => k.includes('phone') || k.includes('tel') || k.includes('contact')) || keys[2];
-                const latKey = keys.find(k => k === 'lat' || k.includes('latitude') || k === 'y');
-                const lngKey = keys.find(k => k === 'lng' || k.includes('long') || k.includes('longitude') || k === 'x');
+                const keys = Object.keys(rawData[0]).filter(k => k !== '_rawRow');
+                
+                // Flexible text property target mappings
+                const nameKey = keys.find(k => k.includes('name') || k.includes('org') || k.includes('resource') || k.includes('title')) || keys[0];
+                const phoneKey = keys.find(k => k.includes('phone') || k.includes('tel') || k.includes('contact')) || '';
+                const addressKey = keys.find(k => k.includes('address') || k.includes('location') || k.includes('street')) || '';
+                const webKey = keys.find(k => k.includes('web') || k.includes('url') || k.includes('link') || k.includes('site')) || '';
 
-                // Normalize data collection structure safely
-                providersData = rawData.map(item => ({
-                    id: item.id,
-                    name: item[nameKey] || 'Unnamed Provider',
-                    phone: item[phoneKey] || 'No phone provided',
-                    lat: sanitizeCoordinate(item[latKey]),
-                    lng: sanitizeCoordinate(item[lngKey])
-                }));
+                // Explicit coordinate targets
+                let latKey = keys.find(k => k === 'lat' || k === 'latitude' || k.endsWith('_lat') || k.includes('latitude'));
+                let lngKey = keys.find(k => k === 'lng' || k === 'long' || k === 'longitude' || k.endsWith('_lng') || k.includes('longitude'));
+
+                providersData = rawData.map((item, idx) => {
+                    let finalLat = sanitizeCoordinate(item[latKey]);
+                    let finalLng = sanitizeCoordinate(item[lngKey]);
+
+                    /* CRITICAL FIX: AGGRESIVE BOUNDING-BOX HARVESTER
+                       If standard explicit coordinate headers missed matching, or evaluations are empty,
+                       dynamically scrape every cell in the row array for values matching the 
+                       Geographic footprint coordinates of the Greater Philadelphia Area.
+                    */
+                    if (isNaN(finalLat) || !finalLng) {
+                        for (const currentKey of keys) {
+                            const val = sanitizeCoordinate(item[currentKey]);
+                            if (!isNaN(val)) {
+                                // Check if value is within Philly regional Latitude brackets
+                                if (val >= 39.0 && val <= 40.5 && isNaN(finalLat)) {
+                                    finalLat = val;
+                                }
+                                // Check if value is within Philly regional Longitude brackets
+                                if (val >= -76.0 && val <= -74.0 && isNaN(finalLng)) {
+                                    finalLng = val;
+                                }
+                            }
+                        }
+                    }
+
+                    return {
+                        id: idx,
+                        name: item[nameKey] || 'Unnamed Organization',
+                        phone: phoneKey ? item[phoneKey] : '',
+                        address: addressKey ? item[addressKey] : '',
+                        website: webKey ? item[webKey] : '',
+                        lat: finalLat,
+                        lng: finalLng,
+                        fullDataMap: item._rawRow // Retains all columns for dynamic rendering
+                    };
+                });
 
                 renderDashboard(providersData);
             })
-            .catch(err => console.error('Error fetching or processing legal resource database:', err));
+            .catch(err => console.error('Database configuration error:', err));
 
-        // Global Render/Update Loop
+        // Global Loop Rendering Dynamic Context
         function renderDashboard(data) {
             markersGroup.clearLayers();
             markerMap.clear();
@@ -324,18 +369,40 @@
             const bounds = [];
 
             data.forEach(item => {
+                // Compile additional informational attributes dynamically (filtering out empty cells)
+                let detailRowsHtml = '';
+                let popupRowsHtml = '';
+                
+                Object.entries(item.fullDataMap).forEach(([key, value]) => {
+                    // Filter out coordinate keys, empty metrics, and basic indices to keep info readable
+                    if (value && value !== '0' && key !== 'id' && !key.startsWith('_') && !key.includes('lat') && !key.includes('long')) {
+                        const rowMarkup = `
+                            <div class="info-row">
+                                <span class="info-label">${key.replace(/_/g, ' ')}:</span>
+                                <span class="info-value">${value}</span>
+                            </div>`;
+                        detailRowsHtml += rowMarkup;
+                        popupRowsHtml += rowMarkup;
+                    }
+                });
+
                 // Generate Left Sidebar Elements
                 const card = document.createElement('div');
                 card.className = 'provider-card';
                 card.setAttribute('data-id', item.id);
+                
                 card.innerHTML = `
                     <div class="provider-name">${item.name}</div>
-                    <div class="provider-phone">
-                        <span>📞</span> ${item.phone !== 'No phone provided' ? `<a href="tel:${item.phone.replace(/\D/g,'')}">${item.phone}</a>` : item.phone}
+                    ${item.phone ? `<div class="provider-meta-primary"><span>📞</span> <a href="tel:${item.phone.replace(/\D/g,'')}">${item.phone}</a></div>` : ''}
+                    ${item.address ? `<div class="provider-meta-primary"><span>📍</span> <span>${item.address}</span></div>` : ''}
+                    ${item.website ? `<div class="provider-meta-primary"><span>🌐</span> <a href="${item.website.startsWith('http') ? item.website : 'https://' + item.website}" target="_blank">Visit Website</a></div>` : ''}
+                    
+                    <div class="provider-details-panel">
+                        ${detailRowsHtml ? detailRowsHtml : '<p style="color:var(--text-muted)">No supplementary details recorded.</p>'}
                     </div>
                 `;
 
-                // Handle Sidebar Node Interactions -> Map Response
+                // Handle Card Click Interactions -> View Alignment
                 card.addEventListener('click', () => {
                     document.querySelectorAll('.provider-card').forEach(c => c.classList.remove('active'));
                     card.classList.add('active');
@@ -351,9 +418,8 @@
 
                 listContainer.appendChild(card);
 
-                // Add Point Geometries to Map Canvas
+                // Add Point Geometries onto Leaflet Viewport
                 if (!isNaN(item.lat) && !isNaN(item.lng)) {
-                    // Using modern solid circle markers for clean dashboard aesthetics instead of raw pins
                     const marker = L.circleMarker([item.lat, item.lng], {
                         radius: 8,
                         fillColor: '#1e3a8a',
@@ -363,13 +429,19 @@
                         fillOpacity: 0.9
                     });
 
+                    // Interactive Popup Window with Scrollable Content View
                     const popupContent = `
                         <div class="popup-title">${item.name}</div>
-                        <div class="popup-detail">📞 ${item.phone}</div>
+                        <div class="popup-scroll-container">
+                            ${item.phone ? `<div><b>Phone:</b> ${item.phone}</div>` : ''}
+                            ${item.address ? `<div><b>Address:</b> ${item.address}</div>` : ''}
+                            <hr style="margin:6px 0; border:0; border-top:1px solid var(--border-color);">
+                            ${popupRowsHtml}
+                        </div>
                     `;
                     marker.bindPopup(popupContent);
 
-                    // Handle Marker Clicks -> Sidebar List Response
+                    // Map Point Interaction -> Sidebar Sync
                     marker.on('click', () => {
                         document.querySelectorAll('.provider-card').forEach(c => c.classList.remove('active'));
                         const targetCard = document.querySelector(`.provider-card[data-id="${item.id}"]`);
@@ -385,19 +457,30 @@
                 }
             });
 
-            // Adjust viewport boundaries automatically to encompass valid plotted vectors
+            // Auto-adjust layout limits to embrace data structures
             if (bounds.length > 0) {
                 map.fitBounds(bounds, { padding: [40, 40] });
             }
         }
 
-        // Search Input Filter Event Pipeline
+        /* UNIVERSAL SEARCH MATRIX:
+           Scans every cell value of the record row across all columns, allowing users
+           to search for resources by zip code, eligibility, type, or service names.
+        */
         document.getElementById('search').addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            const filteredData = providersData.filter(item => 
-                item.name.toLowerCase().includes(searchTerm) || 
-                item.phone.toLowerCase().includes(searchTerm)
-            );
+            const searchTerm = e.target.value.toLowerCase().trim();
+            if (!searchTerm) {
+                renderDashboard(providersData);
+                return;
+            }
+
+            const filteredData = providersData.filter(item => {
+                // Check if search text matches any value inside the compiled data map
+                return Object.values(item.fullDataMap).some(val => 
+                    String(val).toLowerCase().includes(searchTerm)
+                );
+            });
+            
             renderDashboard(filteredData);
         });
     </script>
