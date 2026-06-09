@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Philadelphia Legal Resources Dashboard</title>
+    <title>Legal Resources Mapping Dashboard</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
     
     <style>
-        /* Modern, Serious Institutional Palette */
+        /* Professional Institutional Typography Matrix & Palette */
         :root {
             --bg-primary: #ffffff;
             --bg-sidebar: #f8fafc;
             --border-color: #cbd5e1;
             --text-main: #0f172a;
             --text-muted: #475569;
-            --accent-color: #1e3a8a; /* Slate / Deep Blue */
-            --accent-light: #f0fdf4; /* Light green highlight tint for matches */
+            --accent-color: #1e3a8a; /* Slate Institutional Navy */
+            --accent-hover: #1e40af;
             --card-active-bg: #f1f5f9;
         }
 
@@ -41,7 +41,7 @@
         }
 
         #sidebar {
-            width: 420px;
+            width: 440px;
             height: 100%;
             background-color: var(--bg-sidebar);
             border-right: 1px solid var(--border-color);
@@ -58,7 +58,7 @@
         }
 
         .sidebar-header h1 {
-            font-size: 1.25rem;
+            font-size: 1.3rem;
             font-weight: 600;
             letter-spacing: -0.02em;
             margin-bottom: 4px;
@@ -78,17 +78,18 @@
 
         .search-input {
             width: 100%;
-            padding: 10px 14px;
+            padding: 12px 16px;
             border: 1px solid var(--border-color);
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 0.9rem;
             outline: none;
             transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
         }
 
         .search-input:focus {
             border-color: var(--accent-color);
-            box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.15);
+            box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.15), inset 0 1px 2px rgba(0,0,0,0.05);
         }
 
         .list-container {
@@ -101,11 +102,12 @@
         .provider-card {
             background: white;
             border: 1px solid var(--border-color);
-            border-radius: 6px;
+            border-radius: 8px;
             padding: 16px;
             margin-bottom: 12px;
             cursor: pointer;
             transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
         }
 
         .provider-card:hover {
@@ -116,61 +118,69 @@
         .provider-card.active {
             border-left: 4px solid var(--accent-color);
             background-color: var(--card-active-bg);
+            border-color: var(--border-color);
         }
 
         .provider-name {
-            font-size: 1rem;
+            font-size: 1.05rem;
             font-weight: 600;
             color: var(--text-main);
-            margin-bottom: 6px;
+            margin-bottom: 4px;
             line-height: 1.4;
         }
 
-        .provider-meta-primary {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            margin-bottom: 4px;
-            display: flex;
-            align-items: flex-start;
-            gap: 6px;
-        }
-
-        .provider-meta-primary a {
-            color: var(--accent-color);
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .provider-meta-primary a:hover {
-            text-decoration: underline;
-        }
-
-        /* Collapsible Metadata Panel containing all compiled information fields */
+        /* Spreadsheet Row Inspector Panel */
         .provider-details-panel {
-            margin-top: 12px;
-            padding-top: 12px;
+            margin-top: 14px;
+            padding-top: 14px;
             border-top: 1px dashed var(--border-color);
-            font-size: 0.8rem;
-            display: none; /* Shown dynamically when active */
+            font-size: 0.85rem;
+            display: none;
         }
 
         .provider-card.active .provider-details-panel {
             display: block;
         }
 
+        .info-table {
+            width: 100%;
+        }
+
         .info-row {
-            margin-bottom: 6px;
-            line-height: 1.4;
+            border-bottom: 1px solid #f1f5f9;
+            padding: 8px 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
         }
 
         .info-label {
             font-weight: 600;
-            color: var(--text-main);
-            text-transform: capitalize;
+            color: var(--accent-color);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 3px;
         }
 
         .info-value {
-            color: var(--text-muted);
+            color: var(--text-main);
+            line-height: 1.4;
+            white-space: pre-line; /* Preserves multiline addresses clean breaks */
+            word-break: break-word;
+        }
+
+        .info-value a {
+            color: var(--accent-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .info-value a:hover {
+            text-decoration: underline;
         }
 
         #map {
@@ -178,27 +188,36 @@
             height: 100%;
         }
 
-        /* Stylized Interactive Map Popups */
+        /* Stylized Map Viewport Popups */
         .leaflet-popup-content-wrapper {
-            border-radius: 6px;
-            padding: 6px;
-            max-width: 320px;
+            border-radius: 8px;
+            padding: 8px;
+            max-width: 340px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
         
-        .popup-scroll-container {
-            max-height: 200px;
-            overflow-y: auto;
-            padding-right: 4px;
-            font-size: 0.8rem;
+        .popup-header-title {
+            font-weight: 700;
+            font-size: 1rem;
+            margin-bottom: 8px;
+            color: var(--accent-color);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 6px;
+            line-height: 1.3;
         }
 
-        .popup-title {
-            font-weight: 600;
-            font-size: 0.95rem;
-            margin-bottom: 6px;
-            color: var(--accent-color);
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 4px;
+        .popup-scroll-container {
+            max-height: 240px;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+
+        .popup-scroll-container::-webkit-scrollbar {
+            width: 4px;
+        }
+        .popup-scroll-container::-webkit-scrollbar-thumb {
+            background-color: var(--border-color);
+            border-radius: 4px;
         }
 
         @media (max-width: 768px) {
@@ -214,10 +233,10 @@
         <div id="sidebar">
             <div class="sidebar-header">
                 <h1>Legal Services Directory</h1>
-                <p>Philadelphia Regional Resources Map</p>
+                <p>Regional Interactive Infrastructure Spatial Map</p>
             </div>
             <div class="search-container">
-                <input type="text" id="search" class="search-input" placeholder="Search by name, phone, address, services...">
+                <input type="text" id="search" class="search-input" placeholder="Search rows (e.g. zip code, practice area, languages)...">
             </div>
             <div id="list" class="list-container">
                 </div>
@@ -228,138 +247,91 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
     
     <script>
-        // Initialize Map layout centered on Greater Philadelphia
+        // Anchor viewport coordinates baseline centered over Philadelphia
         const map = L.map('map').setView([39.9526, -75.1652], 12);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
+        // FEATURE UPDATE: Integrated explicit Google Roads tile mapping layers
+        L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            maxZoom: 21,
             crossOrigin: true,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+            attribution: '&copy; Google Maps Road Layer Baseline'
         }).addTo(map);
 
-        const csvUrl = 'https://raw.githubusercontent.com/abornn-web/Philadelphia-Legal-Resources/refs/heads/main/Git%20Legal%20Resource%20Data_Base%20-%20Legal%20Resource%20(1).csv';
+        // Point target directly to the local JSON/GeoJSON resource
+        const jsonUrl = 'legal services.geojson';
         
         let providersData = [];
         let markersGroup = L.layerGroup().addTo(map);
         const markerMap = new Map();
 
-        // High-Fidelity Character State-Machine CSV Parser (Supports long rows, breaks, and embedded quotes)
-        function parseCSV(text) {
-            const lines = [];
-            let row = [""];
-            let inQuotes = false;
-
-            for (let i = 0; i < text.length; i++) {
-                const c = text[i];
-                const next = text[i+1];
-
-                if (c === '"' || c === "'") {
-                    if (inQuotes && next === c) {
-                        row[row.length - 1] += c;
-                        i++;
-                    } else {
-                        inQuotes = !inQuotes;
-                    }
-                } else if (c === ',' && !inQuotes) {
-                    row.push('');
-                } else if ((c === '\r' || c === '\n') && !inQuotes) {
-                    if (c === '\r' && next === '\n') i++;
-                    lines.push(row);
-                    row = [''];
-                } else {
-                    row[row.length - 1] += c;
-                }
-            }
-            if (row.length > 1 || row[0] !== '') lines.push(row);
-            if (lines.length === 0) return [];
-
-            const headers = lines[0].map(h => h.toLowerCase().trim().replace(/^\ufeff/, ''));
-            
-            return lines.slice(1).map((values, idx) => {
-                const obj = { _rawRow: {} }; 
-                headers.forEach((header, index) => {
-                    if (header) {
-                        const val = values[index] !== undefined ? values[index].trim() : '';
-                        obj[header] = val;
-                        obj._rawRow[header] = val; // Hold onto exact key matching for data extraction panels
-                    }
-                });
-                return obj;
-            });
-        }
-
-        // Standardized numeric cleanser handling leading zero paddings (e.g., "039.95" -> 39.95)
+        // Safe coordinates parsing sanitizer engine
         function sanitizeCoordinate(val) {
-            if (!val) return NaN;
-            let cleaned = String(val).replace(/^["']|["']$/g, '').trim();
-            cleaned = cleaned.replace(/^(-?)0+(?=\d)/, '$1');
-            const parsed = parseFloat(cleaned);
+            if (val === undefined || val === null) return NaN;
+            const parsed = parseFloat(val);
             return isNaN(parsed) ? NaN : parsed;
         }
 
-        fetch(csvUrl)
+        // Load and parse the GeoJSON data matrix
+        fetch(jsonUrl)
             .then(response => {
-                if (!response.ok) throw new Error("Database file response error.");
-                return response.text();
+                if (!response.ok) {
+                    throw new Error(`Failed to locate resource file "${jsonUrl}". Verify that it sits in the same directory path.`);
+                }
+                return response.json();
             })
-            .then(csvText => {
-                const rawData = parseCSV(csvText);
-                if (rawData.length === 0) return;
+            .then(geoJsonData => {
+                if (!geoJsonData || !geoJsonData.features) {
+                    throw new Error("Invalid format layout loaded. Expected valid GeoJSON feature vectors collection.");
+                }
 
-                const keys = Object.keys(rawData[0]).filter(k => k !== '_rawRow');
-                
-                // Flexible text property target mappings
-                const nameKey = keys.find(k => k.includes('name') || k.includes('org') || k.includes('resource') || k.includes('title')) || keys[0];
-                const phoneKey = keys.find(k => k.includes('phone') || k.includes('tel') || k.includes('contact')) || '';
-                const addressKey = keys.find(k => k.includes('address') || k.includes('location') || k.includes('street')) || '';
-                const webKey = keys.find(k => k.includes('web') || k.includes('url') || k.includes('link') || k.includes('site')) || '';
+                // Process GeoJSON structure schema points
+                providersData = geoJsonData.features.map((feature, idx) => {
+                    const props = feature.properties || {};
+                    
+                    // Isolate layout coordinates values safely out of property or fallback geometry keys
+                    let latVal = sanitizeCoordinate(props.lat);
+                    let lngVal = sanitizeCoordinate(props.long || props.lng);
 
-                // Explicit coordinate targets
-                let latKey = keys.find(k => k === 'lat' || k === 'latitude' || k.endsWith('_lat') || k.includes('latitude'));
-                let lngKey = keys.find(k => k === 'lng' || k === 'long' || k === 'longitude' || k.endsWith('_lng') || k.includes('longitude'));
-
-                providersData = rawData.map((item, idx) => {
-                    let finalLat = sanitizeCoordinate(item[latKey]);
-                    let finalLng = sanitizeCoordinate(item[lngKey]);
-
-                    /* CRITICAL FIX: AGGRESIVE BOUNDING-BOX HARVESTER
-                       If standard explicit coordinate headers missed matching, or evaluations are empty,
-                       dynamically scrape every cell in the row array for values matching the 
-                       Geographic footprint coordinates of the Greater Philadelphia Area.
-                    */
-                    if (isNaN(finalLat) || !finalLng) {
-                        for (const currentKey of keys) {
-                            const val = sanitizeCoordinate(item[currentKey]);
-                            if (!isNaN(val)) {
-                                // Check if value is within Philly regional Latitude brackets
-                                if (val >= 39.0 && val <= 40.5 && isNaN(finalLat)) {
-                                    finalLat = val;
-                                }
-                                // Check if value is within Philly regional Longitude brackets
-                                if (val >= -76.0 && val <= -74.0 && isNaN(finalLng)) {
-                                    finalLng = val;
-                                }
-                            }
+                    if (isNaN(latVal) || isNaN(lngVal)) {
+                        if (feature.geometry && feature.geometry.coordinates) {
+                            lngVal = sanitizeCoordinate(feature.geometry.coordinates[0]);
+                            latVal = sanitizeCoordinate(feature.geometry.coordinates[1]);
                         }
                     }
 
+                    // Map all native key value pairs for structural data row inspector
+                    const parsedRowArray = [];
+                    Object.keys(props).forEach(key => {
+                        let val = props[key];
+                        
+                        // Transform boolean flags immediately to legible labels
+                        if (typeof val === 'boolean') {
+                            val = val ? 'Yes' : 'No';
+                        }
+                        
+                        parsedRowArray.push({
+                            label: key,
+                            value: val !== null && val !== undefined ? String(val).trim() : ''
+                        });
+                    });
+
                     return {
                         id: idx,
-                        name: item[nameKey] || 'Unnamed Organization',
-                        phone: phoneKey ? item[phoneKey] : '',
-                        address: addressKey ? item[addressKey] : '',
-                        website: webKey ? item[webKey] : '',
-                        lat: finalLat,
-                        lng: finalLng,
-                        fullDataMap: item._rawRow // Retains all columns for dynamic rendering
+                        name: props.Organization || 'Unnamed Organization',
+                        lat: latVal,
+                        lng: lngVal,
+                        rowData: parsedRowArray
                     };
                 });
 
                 renderDashboard(providersData);
             })
-            .catch(err => console.error('Database configuration error:', err));
+            .catch(err => {
+                console.error(err);
+                document.getElementById('list').innerHTML = `<p style="color:red; font-size:0.9rem; padding:16px;"><b>JSON Processing Error:</b> ${err.message}</p>`;
+            });
 
-        // Global Loop Rendering Dynamic Context
+        // Dashboard Core Render Pipeline Loop
         function renderDashboard(data) {
             markersGroup.clearLayers();
             markerMap.clear();
@@ -369,79 +341,95 @@
             const bounds = [];
 
             data.forEach(item => {
-                // Compile additional informational attributes dynamically (filtering out empty cells)
-                let detailRowsHtml = '';
-                let popupRowsHtml = '';
-                
-                Object.entries(item.fullDataMap).forEach(([key, value]) => {
-                    // Filter out coordinate keys, empty metrics, and basic indices to keep info readable
-                    if (value && value !== '0' && key !== 'id' && !key.startsWith('_') && !key.includes('lat') && !key.includes('long')) {
-                        const rowMarkup = `
+                // Dynamically compile Spreadsheet Row Inspector contents
+                let detailsHtml = '<div class="info-table">';
+                item.rowData.forEach(cell => {
+                    // Ignore empty fields or irrelevant system metrics
+                    if (cell.value && cell.value !== '0' && cell.value.toLowerCase() !== 'n/a' && cell.value !== '') {
+                        let displayValue = cell.value;
+                        
+                        // Auto hyperlink target upgrades (URLs, Emails, Phone Numbers)
+                        if (displayValue.startsWith('http://') || displayValue.startsWith('https://') || cell.label.toLowerCase() === 'url') {
+                            let linkHref = displayValue.startsWith('http') ? displayValue : `https://${displayValue}`;
+                            displayValue = `<a href="${linkHref}" target="_blank">Open Resource Site 🌐</a>`;
+                        } else if (cell.label.toLowerCase().includes('phone') || cell.label.toLowerCase().includes('number')) {
+                            const numericPhone = displayValue.replace(/\D/g, '');
+                            if (numericPhone.length >= 10) {
+                                displayValue = `<a href="tel:${numericPhone}">${displayValue}</a>`;
+                            }
+                        } else if (cell.label.toLowerCase().includes('email') && displayValue.includes('@')) {
+                            displayValue = `<a href="mailto:${displayValue}">${displayValue}</a>`;
+                        }
+
+                        detailsHtml += `
                             <div class="info-row">
-                                <span class="info-label">${key.replace(/_/g, ' ')}:</span>
-                                <span class="info-value">${value}</span>
-                            </div>`;
-                        detailRowsHtml += rowMarkup;
-                        popupRowsHtml += rowMarkup;
+                                <span class="info-label">${cell.label}</span>
+                                <span class="info-value">${displayValue}</span>
+                            </div>
+                        `;
                     }
                 });
+                detailsHtml += '</div>';
 
-                // Generate Left Sidebar Elements
+                // Append Sidebar Cards Structures
                 const card = document.createElement('div');
                 card.className = 'provider-card';
                 card.setAttribute('data-id', item.id);
-                
                 card.innerHTML = `
                     <div class="provider-name">${item.name}</div>
-                    ${item.phone ? `<div class="provider-meta-primary"><span>📞</span> <a href="tel:${item.phone.replace(/\D/g,'')}">${item.phone}</a></div>` : ''}
-                    ${item.address ? `<div class="provider-meta-primary"><span>📍</span> <span>${item.address}</span></div>` : ''}
-                    ${item.website ? `<div class="provider-meta-primary"><span>🌐</span> <a href="${item.website.startsWith('http') ? item.website : 'https://' + item.website}" target="_blank">Visit Website</a></div>` : ''}
-                    
                     <div class="provider-details-panel">
-                        ${detailRowsHtml ? detailRowsHtml : '<p style="color:var(--text-muted)">No supplementary details recorded.</p>'}
+                        ${detailsHtml}
                     </div>
                 `;
 
-                // Handle Card Click Interactions -> View Alignment
-                card.addEventListener('click', () => {
+                // Handle Sidebar click events
+                card.addEventListener('click', (e) => {
+                    if (e.target.tagName === 'A' || e.target.parentElement.tagName === 'A') return;
+
+                    const wasActive = card.classList.contains('active');
                     document.querySelectorAll('.provider-card').forEach(c => c.classList.remove('active'));
-                    card.classList.add('active');
                     
-                    if (!isNaN(item.lat) && !isNaN(item.lng)) {
-                        const marker = markerMap.get(item.id);
-                        if (marker) {
-                            map.flyTo([item.lat, item.lng], 15, { animate: true, duration: 1 });
-                            marker.openPopup();
+                    if (!wasActive) {
+                        card.classList.add('active');
+                        if (!isNaN(item.lat) && !isNaN(item.lng)) {
+                            const marker = markerMap.get(item.id);
+                            if (marker) {
+                                map.flyTo([item.lat, item.lng], 15, { animate: true, duration: 1 });
+                                marker.openPopup();
+                            }
                         }
                     }
                 });
 
                 listContainer.appendChild(card);
 
-                // Add Point Geometries onto Leaflet Viewport
-                if (!isNaN(item.lat) && !isNaN(item.lng)) {
+                /* STRICT GEOGRAPHIC BOUNDS SECURITY OVERLAY
+                   Enforces continental United States map spatial boundaries:
+                   Lat [24.396308, 49.384358], Long [-125.0011, -66.93457]
+                */
+                const isInsideUS = !isNaN(item.lat) && !isNaN(item.lng) &&
+                                   item.lat >= 24.396308 && item.lat <= 49.384358 &&
+                                   item.lng >= -125.0011 && item.lng <= -66.93457;
+
+                if (isInsideUS) {
                     const marker = L.circleMarker([item.lat, item.lng], {
                         radius: 8,
                         fillColor: '#1e3a8a',
                         color: '#ffffff',
                         weight: 2,
                         opacity: 1,
-                        fillOpacity: 0.9
+                        fillOpacity: 0.85
                     });
 
-                    // Interactive Popup Window with Scrollable Content View
                     const popupContent = `
-                        <div class="popup-title">${item.name}</div>
+                        <div class="popup-header-title">${item.name}</div>
                         <div class="popup-scroll-container">
-                            ${item.phone ? `<div><b>Phone:</b> ${item.phone}</div>` : ''}
-                            ${item.address ? `<div><b>Address:</b> ${item.address}</div>` : ''}
-                            <hr style="margin:6px 0; border:0; border-top:1px solid var(--border-color);">
-                            ${popupRowsHtml}
+                            ${detailsHtml}
                         </div>
                     `;
                     marker.bindPopup(popupContent);
 
-                    // Map Point Interaction -> Sidebar Sync
+                    // Coordinate Map Clicks -> Active View Sidebar List sync response
                     marker.on('click', () => {
                         document.querySelectorAll('.provider-card').forEach(c => c.classList.remove('active'));
                         const targetCard = document.querySelector(`.provider-card[data-id="${item.id}"]`);
@@ -457,16 +445,13 @@
                 }
             });
 
-            // Auto-adjust layout limits to embrace data structures
+            // Adjust viewport bound calculations automatically
             if (bounds.length > 0) {
-                map.fitBounds(bounds, { padding: [40, 40] });
+                map.fitBounds(bounds, { padding: [50, 50] });
             }
         }
 
-        /* UNIVERSAL SEARCH MATRIX:
-           Scans every cell value of the record row across all columns, allowing users
-           to search for resources by zip code, eligibility, type, or service names.
-        */
+        // Global Dynamic Inspector Search Matrix
         document.getElementById('search').addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase().trim();
             if (!searchTerm) {
@@ -475,9 +460,8 @@
             }
 
             const filteredData = providersData.filter(item => {
-                // Check if search text matches any value inside the compiled data map
-                return Object.values(item.fullDataMap).some(val => 
-                    String(val).toLowerCase().includes(searchTerm)
+                return item.rowData.some(cell => 
+                    cell.value.toLowerCase().includes(searchTerm)
                 );
             });
             
