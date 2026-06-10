@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legal Resources Directory Dashboard</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
+    
+    <style>
+        /* Modern Institutional Typography & Color Matrix */
+        :root {
+            --bg-primary: #ffffff;
+            --bg-sidebar: #f8fafc;
+            --border-color: #cbd5e1;
+            --text-main: #0f172a;
+            --text-muted: #475569;
+            --accent-color: #1e3a8a; /* Slate Institutional Navy */
+            --accent-hover: #1e40af;
+            --card-active-bg: #f1f5f9;
+            --transport-color: #0d9488; /* Teal Accent for Transit Layer */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            color: var(--text-main);
+            background-color: var(--bg-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #dashboard {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #sidebar {
+            width: 460px;
+            height: 100%;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            box-shadow: 2px 0 12px rgba(15, 23, 42, 0.05);
+        }
+
+        .sidebar-header {
+            padding: 24px;
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        .sidebar-header h1 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: 4px;
+        }
+
+        .sidebar-header p {
+            font-size: 0.85rem;
+            color: #93c5fd;
+            opacity: 0.9;
+        }
+
+        .search-container {
+            padding: 16px 24px;
+            background-color: var(--bg-sidebar);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .search-input:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.15), inset 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .list-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 24px;
+        }
+
+        /* Interactive Dynamic Sidebar Row Cards */
+        .provider-card {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+        }
+
+        .provider-card:hover {
+            border-color: var(--text-muted);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        .provider-card.active {
+            border-left: 4px solid var(--accent-color);
+            background-color: var(--card-active-bg);
+            border-color: var(--border-color);
+        }
+
+        .provider-name {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 4px;
+            line-height: 1.4;
+        }
+
+        /* Layout Section Blocks */
+        .provider-details-panel {
+            margin-top: 14px;
+            border-top: 1px dashed var(--border-color);
+            font-size: 0.85rem;
+            display: none; 
+        }
+
+        /* Tabs inside provider details */
+        .tabs-header {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .tab-btn {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: white;
+            font-weight: 700;
+            font-size: 0.78rem;
+            color: var(--text-main);
+            cursor: pointer;
+        }
+
+        .tab-btn.active {
+            background: var(--card-active-bg);
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .provider-card.active .provider-details-panel {
+            display: block;
+        }
+
+        .directory-section {
+            padding: 12px 0 6px 0;
+        }
+        
+        .directory-section:not(:last-child) {
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .section-block-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .title-info { color: var(--accent-color); }
+        .title-transit { color: var(--transport-color); }
+
+        .info-table {
+            width: 100%;
+        }
+
+        .info-row {
+            padding: 5px 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #64748b;
+            font-size: 0.75rem;
+            margin-bottom: 1px;
+        }
+
+        .info-value {
+            color: var(--text-main);
+            line-height: 1.4;
+            white-space: pre-line; 
+            word-break: break-word;
+        }
+
+        .info-value a {
+            color: var(--accent-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .info-value a:hover {
+            text-decoration: underline;
+        }
+
+        /* Direction Integration Trigger Links */
+        .directions-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .btn-directions {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: white;
+            color: var(--text-main);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.78rem;
+            transition: all 0.15s ease;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .btn-directions:hover {
+            background: #f1f5f9;
+            border-color: var(--text-muted);
+            text-decoration: none !important;
+        }
+
+        #map {
+            flex: 1;
+            height: 100%;
+        }
+
+        /* Popups */
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+            padding: 8px;
+            max-width: 350px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .popup-header-title {
+            font-weight: 700;
+            font-size: 1rem;
+            margin-bottom: 8px;
+            color: var(--accent-color);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 6px;
+            line-height: 1.3;
+        }
+
+        .popup-scroll-container {
+            max-height: 260px;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+
+        @media (max-width: 768px) {
+            #dashboard { flex-direction: column-reverse; }
+            #sidebar { width: 100%; height: 45%; }
+            #map { height: 55%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="dashboard">
+        <div id="sidebar">
+            <div class="sidebar-header">
+                <h1>Legal Services Directory</h1>
+                <p>Regional Interactive Infrastructure Spatial Map</p>
+            </div>
+            <div class="search-container">
+                <input type="text" id="search" class="search-input" placeholder="Search rows (e.g. zip code, service type, rail line)...">
+            </div>
+            <div id="location-info" style="padding:8px 24px; border-bottom:1px solid var(--border-color); font-size:0.85rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                    <div id="location-token" style="color:#064e3b; background:#ecfdf5; padding:6px 8px; border-radius:6px; font-weight:600;">Location services: Not sharing</div>
+                    <div id="location-accuracy" style="font-size:0.85rem; color:var(--text-muted);">Accuracy: N/A</div>
+                </div>
+                <div style="margin-top:8px; display:flex; gap:12px; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="width:14px; height:14px; background:#3b82f6; border-radius:50%; display:inline-block; border:2px solid #fff;"></span>
+                        <span style="font-size:0.85rem; color:var(--text-main);">Blue dot — your reported position</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="width:14px; height:14px; background:linear-gradient(90deg,#aeeef5,#dbeafe); border-radius:3px; display:inline-block; border:1px solid #cbd5e1;"></span>
+                        <span style="font-size:0.85rem; color:var(--text-main);">Pale circle — reported accuracy (meters)</span>
+                    </div>
+                </div>
+                <div style="margin-top:6px; font-size:0.78rem; color:#475569;">This site may request your device location to show nearby services. Location is shared only with your browser.</div>
+            </div>
+            <div id="list" class="list-container">
+                </div>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+    
+    <script>
+        // Force immediate map focus on Philadelphia on startup
+        const philadelphiaCenter = [39.9526, -75.1652];
+        const map = L.map('map').setView(philadelphiaCenter, 12);
+
+        // Load baseline map styles via the native Google Maps Tile Engine Matrix
+        L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            maxZoom: 21,
+            crossOrigin: true,
+            attribution: '© Google Maps'
+        }).addTo(map);
+
+        // Geodatabase asset targeting hooks
+        const primaryJsonUrl = 'https://raw.githubusercontent.com/abornn-web/Philadelphia-Legal-Resources/refs/heads/main/Formatted.geojson';
+        const fallbackJsonUrl = 'legal services.geojson'; 
+        const serviceAreaUrl = 'https://raw.githubusercontent.com/abornn-web/Philadelphia-Legal-Resources/refs/heads/main/full_service_area%20(1).geojson';
+        
+        let providersData = [];
+        let userLocation = null; 
+        let serviceAreasData = null;
+        let selectedFacilityId = null;
+        
+        let markersGroup = L.layerGroup().addTo(map);
+        let trackingOverlayGroup = L.layerGroup().addTo(map); 
+        let serviceAreasGroup = L.layerGroup().addTo(map);
+        let trolleyLinesGroup = L.layerGroup().addTo(map);
+        const markerMap = new Map();
+
+        // Layer Toggling Controls
+        const overlayLayers = {
+            "Distance Vectors & Routing": trackingOverlayGroup,
+            "SEPTA Trolley Lines": trolleyLinesGroup,
+            "Service Areas": serviceAreasGroup
+        };
+        L.control.layers(null, overlayLayers, { collapsed: false, position: 'topright' }).addTo(map);
+
+        function sanitizeCoordinate(val) {
+            if (val === undefined || val === null) return NaN;
+            const parsed = parseFloat(val);
+            return isNaN(parsed) ? NaN : parsed;
+        }
+
+        // Native HTML5 Browser Geolocation Ingestion Pipeline (Leaflet watchPosition)
+        // This replaces one-shot getCurrentPosition with continuous tracking
+            (function enableLeafletUserTracking(){
+            if (!navigator.geolocation) {
+                document.getElementById('list').insertAdjacentHTML('afterbegin', `
+                    <p style="color:gray; font-size:0.9rem; padding:12px;"><b>Geolocation Unavailable:</b> Your browser does not support navigator.geolocation.</p>
+                `);
+                return;
+            }
+
+            if (!window.isSecureContext && location.protocol !== 'file:') {
+                document.getElementById('list').insertAdjacentHTML('afterbegin', `
+                    <p style="color:orange; font-size:0.9rem; padding:12px;"><b>Geolocation Note:</b> Browser geolocation requires a secure context (HTTPS) or localhost. Serve this page via localhost or HTTPS to enable location sharing.</p>
+                `);
+            }
+
+            let _geoWatchId = null;
+            let _userMarker = null;
+            let _userAccuracy = null;
+            const _tokenEl = document.getElementById('location-token');
+            const _accEl = document.getElementById('location-accuracy');
+
+            function startUserTracking() {
+                if (_geoWatchId !== null) return; // already tracking
+
+                if (_tokenEl) _tokenEl.textContent = 'Location services: Requesting...';
+
+                _geoWatchId = navigator.geolocation.watchPosition(
+                    pos => {
+                        const lat = pos.coords.latitude;
+                        const lng = pos.coords.longitude;
+                        const accuracy = pos.coords.accuracy || 0;
+
+                        userLocation = { lat, lng };
+
+                        if (_tokenEl) _tokenEl.textContent = 'Location services: Sharing';
+                        if (_accEl) _accEl.textContent = `Accuracy: ${Math.round(accuracy)} m`;
+
+                        if (_userMarker) {
+                            _userMarker.setLatLng([lat, lng]);
+                            if (_userAccuracy) _userAccuracy.setLatLng([lat, lng]).setRadius(accuracy);
+                        } else {
+                            _userMarker = L.circleMarker([lat, lng], {
+                                radius: 9,
+                                fillColor: '#3b82f6',
+                                color: '#ffffff',
+                                weight: 3,
+                                opacity: 1,
+                                fillOpacity: 0.9
+                            }).bindPopup('<b>Your Shared Position</b>').addTo(trackingOverlayGroup);
+
+                            _userAccuracy = L.circle([lat, lng], {
+                                color: '#3b82f6',
+                                weight: 1,
+                                opacity: 0.6,
+                                fillColor: '#3b82f6',
+                                fillOpacity: 0.12
+                            }).setRadius(accuracy).addTo(trackingOverlayGroup);
+                        }
+
+                        // Re-render UI list layout if geo-data streaming finishes early
+                        if (providersData.length > 0) renderDashboard(providersData);
+
+                        // fly to user on first fix
+                        if (!_userMarker._hadFlyTo) {
+                            map.flyTo([lat, lng], 14);
+                            _userMarker._hadFlyTo = true;
+                        }
+                    },
+                    err => {
+                        console.warn('watchPosition error', err);
+                        const msg = err && err.message ? err.message : ('Geolocation error code: ' + (err && err.code ? err.code : 'unknown'));
+                        document.getElementById('list').insertAdjacentHTML('afterbegin', `
+                            <p style="color:red; font-size:0.9rem; padding:12px;"><b>Geolocation Error:</b> ${msg}</p>
+                        `);
+                        if (_tokenEl) _tokenEl.textContent = 'Location services: Not sharing';
+                        if (_accEl) _accEl.textContent = 'Accuracy: N/A';
+                    },
+                    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+                );
+            }
+
+            function stopUserTracking() {
+                if (_geoWatchId !== null) {
+                    navigator.geolocation.clearWatch(_geoWatchId);
+                    _geoWatchId = null;
+                }
+                if (_userMarker) {
+                    trackingOverlayGroup.removeLayer(_userMarker);
+                    _userMarker = null;
+                }
+                if (_userAccuracy) {
+                    trackingOverlayGroup.removeLayer(_userAccuracy);
+                    _userAccuracy = null;
+                }
+                if (_tokenEl) _tokenEl.textContent = 'Location services: Not sharing';
+                if (_accEl) _accEl.textContent = 'Accuracy: N/A';
+            }
+
+            // Expose functions for debugging and optional manual control
+            window.startUserTracking = startUserTracking;
+            window.stopUserTracking = stopUserTracking;
+
+            // Start tracking automatically
+            startUserTracking();
+        })();
+
+        // Parallel Fallback Data Ingestion Interface Engine
+        function loadData() {
+            fetch(primaryJsonUrl)
+                .then(response => {
+                    if (!response.ok) throw new Error("Primary cloud path unreachable.");
+                    return response.json();
+                })
+                .then(geoJsonData => processData(geoJsonData))
+                .catch(err => {
+                    console.warn("Falling back to local repository relative schema asset path...", err);
+                    fetch(fallbackJsonUrl)
+                        .then(resp => {
+                            if (!resp.ok) throw new Error("Data retrieval failure.");
+                            return resp.json();
+                        })
+                        .then(localData => processData(localData))
+                        .catch(finalErr => {
+                            document.getElementById('list').innerHTML = `<p style="color:red; font-size:0.9rem; padding:16px;"><b>Data Ingestion Error:</b> Failed to find legal services data file source layout.</p>`;
+                        });
+                });
+
+            // Load service areas in parallel
+            fetch(serviceAreaUrl)
+                .then(response => {
+                    if (!response.ok) throw new Error("Service area data unreachable.");
+                    return response.json();
+                })
+                .then(data => {
+                    serviceAreasData = data;
+                    console.debug('Service areas loaded:', serviceAreasData);
+                })
+                .catch(err => console.warn('Service area data fetch failed:', err));
+
+            // Load trolley lines in parallel
+            fetch('Trolley_Lines.geojson')
+                .then(response => {
+                    if (!response.ok) throw new Error("Trolley lines data unreachable.");
+                    return response.json();
+                })
+                .then(data => {
+                    console.debug('Trolley lines loaded');
+                    renderTrolleyLines(data);
+                })
+                .catch(err => console.warn('Trolley lines fetch failed:', err));
+        }
+
+        function processData(geoJsonData) {
+            if (!geoJsonData || !geoJsonData.features) return;
+
+            providersData = geoJsonData.features.map((feature, idx) => {
+                const props = feature.properties || {};
+                
+                let latVal = sanitizeCoordinate(props.lat);
+                let lngVal = sanitizeCoordinate(props.long || props.lng);
+
+                if (isNaN(latVal) || isNaN(lngVal)) {
+                    if (feature.geometry && feature.geometry.coordinates) {
+                        lngVal = sanitizeCoordinate(feature.geometry.coordinates[0]);
+                        latVal = sanitizeCoordinate(feature.geometry.coordinates[1]);
+                    }
+                }
+
+                const infoFields = [];
+                const transitFields = [];
+                const transitKeys = ["nearest septa station", "nearest line(s)", "nearest transit", "septa station", "line(s)"];
+
+                Object.keys(props).forEach(key => {
+                    let val = props[key];
+                    if (typeof val === 'boolean') val = val ? 'Yes' : 'No';
+                    
+                    const normalizedKey = key.toLowerCase().trim();
+                    const record = {
+                        label: key,
+                        value: val !== null && val !== undefined ? String(val).trim() : ''
+                    };
+
+                    if (transitKeys.some(k => normalizedKey.includes(k))) {
+                        transitFields.push(record);
+                    } else {
+                        infoFields.push(record);
+                    }
+                });
+
+                return {
+                    id: idx,
+                    facilityId: props.FacilityID || null,
+                    name: props.Organization || 'Unnamed Organization',
+                    lat: latVal,
+                    lng: lngVal,
+                    infoFields: infoFields,
+                    transitFields: transitFields
+                };
+            });
+
+            renderDashboard(providersData);
+        }
+
+        function buildTableRowsHtml(fieldsArray) {
+            let html = '';
+            fieldsArray.forEach(cell => {
+                if (cell.value && cell.value !== '0' && cell.value.toLowerCase() !== 'n/a' && cell.value !== '') {
+                    let displayValue = cell.value;
+                    
+                    if (displayValue.startsWith('http://') || displayValue.startsWith('https://') || cell.label.toLowerCase() === 'url') {
+                        let linkHref = displayValue.startsWith('http') ? displayValue : `https://${displayValue}`;
+                        displayValue = `<a href="${linkHref}" target="_blank">Open Resource Site 🌐</a>`;
+                    } else if (cell.label.toLowerCase().includes('phone') || cell.label.toLowerCase().includes('number')) {
+                        const numericPhone = displayValue.replace(/\D/g, '');
+                        if (numericPhone.length >= 10) displayValue = `<a href="tel:${numericPhone}">${displayValue}</a>`;
+                    } else if (cell.label.toLowerCase().includes('email') && displayValue.includes('@')) {
+                        displayValue = `<a href="mailto:${displayValue}">${displayValue}</a>`;
+                    }
+
+                    html += `
+                        <div class="info-row">
+                            <span class="info-label">${cell.label}</span>
+                            <span class="info-value">${displayValue}</span>
+                        </div>
+                    `;
+                }
+            });
+            return html;
+        }
+
+        function getColorForInterval(toBreak) {
+            // Color gradient based on distance intervals (minutes)
+            // 0-5: lightest, 5-10: light, 10-15: medium, 15-20: darkest
+            if (toBreak <= 5) return { color: '#86efac', fillColor: '#86efac' }; // Light green
+            if (toBreak <= 10) return { color: '#4ade80', fillColor: '#4ade80' }; // Medium-light green
+            if (toBreak <= 15) return { color: '#22c55e', fillColor: '#22c55e' }; // Medium green
+            return { color: '#15803d', fillColor: '#15803d' }; // Dark green (15-20+)
+        }
+
+        function showServiceAreas(facilityId) {
+            serviceAreasGroup.clearLayers();
+            selectedFacilityId = facilityId;
+
+            if (!serviceAreasData || !facilityId) return;
+
+            const matchedAreas = serviceAreasData.features.filter(f => f.properties && f.properties.FacilityID === facilityId);
+            
+            matchedAreas.forEach(feature => {
+                const toBreak = feature.properties.ToBreak || 0;
+                const colorScheme = getColorForInterval(toBreak);
+
+                const layer = L.geoJSON(feature, {
+                    style: {
+                        color: colorScheme.color,
+                        weight: 1.5,
+                        opacity: 0.8,
+                        fillColor: colorScheme.fillColor,
+                        fillOpacity: 0.25
+                    }
+                });
+                
+                const fromBreak = feature.properties.FromBreak || 0;
+                layer.bindPopup(`<b>Service Area</b><br><b>Travel Time:</b> ${fromBreak}-${toBreak} minutes<br><b>ID:</b> ${feature.properties.FacilityID}`);
+                layer.addTo(serviceAreasGroup);
+            });
+
+            console.debug(`Displayed ${matchedAreas.length} service area(s) for FacilityID ${facilityId}`);
+        }
+
+        function getTrolleyLineColor(route) {
+            // Assign distinct colors to trolley routes
+            const routeColors = {
+                'T1': '#e74c3c', // Red
+                'T2': '#3498db', // Blue
+                'T3': '#2ecc71', // Green
+                'T4': '#f39c12', // Orange
+                'T5': '#9b59b6', // Purple
+                'G1': '#1abc9c', // Teal
+                'D1': '#e67e22', // Dark Orange
+                'D2': '#34495e'  // Dark Gray
+            };
+            return routeColors[route] || '#95a5a6'; // Default gray for unknown routes
+        }
+
+        function renderTrolleyLines(trolleyData) {
+            if (!trolleyData || !trolleyData.features) return;
+
+            trolleyData.features.forEach(feature => {
+                const route = feature.properties.Route || 'Unknown';
+                const routeName = feature.properties.Route_Name || '';
+                const lineColor = getTrolleyLineColor(route);
+
+                const layer = L.geoJSON(feature, {
+                    style: {
+                        color: lineColor,
+                        weight: 3,
+                        opacity: 0.8
+                    }
+                });
+
+                layer.bindPopup(`<b>SEPTA Trolley Line</b><br><b>Route:</b> ${route}<br><b>Name:</b> ${routeName}`);
+                layer.addTo(trolleyLinesGroup);
+            });
+
+            console.debug('Rendered trolley lines');
+        }
+
+        function renderDashboard(data) {
+            markersGroup.clearLayers();
+            const temporaryLayers = [];
+            trackingOverlayGroup.eachLayer(layer => {
+                if (!(layer instanceof L.Polyline)) temporaryLayers.push(layer);
+            });
+            trackingOverlayGroup.clearLayers();
+            temporaryLayers.forEach(l => l.addTo(trackingOverlayGroup));
+            
+            markerMap.clear();
+            const listContainer = document.getElementById('list');
+            listContainer.innerHTML = '';
+
+            const bounds = [];
+
+            data.forEach(item => {
+                let rawDistanceMiles = null;
+                let trackingBlockHtml = '';
+
+                if (userLocation && !isNaN(item.lat) && !isNaN(item.lng)) {
+                    const metersDistance = map.distance([userLocation.lat, userLocation.lng], [item.lat, item.lng]);
+                    rawDistanceMiles = (metersDistance * 0.000621371).toFixed(2);
+                    
+                    trackingBlockHtml = `
+                        <div class="info-row" style="background: #f0fdfa; padding: 8px; border-radius: 4px; margin-bottom: 8px; border: 1px solid #ccfbf1;">
+                            <span class="info-label" style="color: var(--transport-color)">Straight-Line Vector Radius</span>
+                            <span class="info-value" style="font-weight: 700; color: var(--transport-color)">${rawDistanceMiles} Miles from your tracked device position</span>
+                        </div>
+                    `;
+                }
+
+                const infoSectionHtml = buildTableRowsHtml(item.infoFields);
+                let transitSectionHtml = trackingBlockHtml + buildTableRowsHtml(item.transitFields);
+
+                // FIXED GOOGLE MAPS NAVIGATION API LINKS
+                if (!isNaN(item.lat) && !isNaN(item.lng)) {
+                    const originParam = userLocation ? `&origin=${userLocation.lat},${userLocation.lng}` : '';
+                    const destParam = `&destination=${item.lat},${item.lng}`;
+                    
+                    const driveUrl = `https://www.google.com/maps/dir/?api=1${originParam}${destParam}&travelmode=driving`;
+                    const walkUrl = `https://www.google.com/maps/dir/?api=1${originParam}${destParam}&travelmode=walking`;
+
+                    const distanceDisplay = rawDistanceMiles ? `<div class="info-row" style="margin-bottom:8px;"><span class="info-label" style="color: var(--transport-color)">Approx. Distance</span><span class="info-value" style="font-weight:700; color:var(--transport-color)">${rawDistanceMiles} Miles (straight-line)</span></div>` : '';
+
+                    transitSectionHtml += `${distanceDisplay}
+                        <div class="directions-grid">
+                            <a href="${driveUrl}" target="_blank" class="btn-directions">🚗 Driving Route</a>
+                            <a href="${walkUrl}" target="_blank" class="btn-directions">🚶 Walking Route</a>
+                        </div>
+                    `;
+                }
+
+                const compositeDetailsHtml = `
+                    <div class="directory-section">
+                        <div class="tabs-header">
+                            <button class="tab-btn active" data-tab="info">ℹ️ Information</button>
+                            <button class="tab-btn" data-tab="transit">🚇 Transportation</button>
+                        </div>
+                        <div class="tab-content active" data-tab="info">
+                            <div class="section-block-title title-info">Information Section</div>
+                            <div class="info-table">${infoSectionHtml}</div>
+                        </div>
+                        <div class="tab-content" data-tab="transit">
+                            <div class="section-block-title title-transit">Transportation Section</div>
+                            <div class="info-table">${transitSectionHtml}</div>
+                        </div>
+                    </div>
+                `;
+
+                const card = document.createElement('div');
+                card.className = 'provider-card';
+                card.setAttribute('data-id', item.id);
+                card.innerHTML = `
+                    <div class="provider-name">${item.name}</div>
+                    ${rawDistanceMiles ? `<div style="font-size:0.75rem; color: var(--transport-color); font-weight:600; margin-top:2px;">📍 ${rawDistanceMiles} miles away</div>` : ''}
+                    <div class="provider-details-panel">
+                        ${compositeDetailsHtml}
+                    </div>
+                `;
+
+                card.addEventListener('click', (e) => {
+                    if (e.target.tagName === 'A' || e.target.parentElement.tagName === 'A') return;
+
+                    const wasActive = card.classList.contains('active');
+                    document.querySelectorAll('.provider-card').forEach(c => c.classList.remove('active'));
+                    
+                    trackingOverlayGroup.eachLayer(layer => {
+                        if (layer instanceof L.Polyline) trackingOverlayGroup.removeLayer(layer);
+                    });
+                    
+                    if (!wasActive) {
+                        card.classList.add('active');
+                        if (!isNaN(item.lat) && !isNaN(item.lng)) {
+                            const marker = markerMap.get(item.id);
+                            if (marker) {
+                                map.flyTo([item.lat, item.lng], 15, { animate: true, duration: 1 });
+                                marker.openPopup();
+
+                                if (userLocation && map.hasLayer(trackingOverlayGroup)) {
+                                    L.polyline([[userLocation.lat, userLocation.lng], [item.lat, item.lng]], {
+                                        color: 'var(--transport-color)',
+                                        weight: 4,
+                                        dashArray: '6, 8',
+                                        opacity: 0.75
+                                    }).addTo(trackingOverlayGroup);
+                                }
+                            }
+                        }
+                        // Show service areas for this facility
+                        if (item.facilityId) showServiceAreas(item.facilityId);
+                    }
+                });
+
+                listContainer.appendChild(card);
+
+                // Wire tabs inside the card so clicking switches content
+                (function wireCardTabs(c){
+                    const btns = c.querySelectorAll('.tab-btn');
+                    const tabs = c.querySelectorAll('.tab-content');
+                    btns.forEach(b => b.addEventListener('click', (ev) => {
+                        ev.preventDefault();
+                        btns.forEach(x => x.classList.remove('active'));
+                        tabs.forEach(t => t.classList.remove('active'));
+                        b.classList.add('active');
+                        const target = b.getAttribute('data-tab');
+                        const content = c.querySelector(`.tab-content[data-tab="${target}"]`);
+                        if (content) content.classList.add('active');
+                    }));
+                })(card);
+
+                const isInsideUS = !isNaN(item.lat) && !isNaN(item.lng) &&
+                                   item.lat >= 24.396308 && item.lat <= 49.384358 &&
+                                   item.lng >= -125.0011 && item.lng <= -66.93457;
+
+                if (isInsideUS) {
+                    const marker = L.circleMarker([item.lat, item.lng], {
+                        radius: 8,
+                        fillColor: '#1e3a8a',
+                        color: '#ffffff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.85
+                    });
+
+                    marker.bindPopup(`
+                        <div class="popup-header-title">${item.name}</div>
+                        <div class="popup-scroll-container">${compositeDetailsHtml}</div>
+                    `);
+
+                    marker.on('click', () => {
+                        document.querySelectorAll('.provider-card').forEach(c => c.classList.remove('active'));
+                        trackingOverlayGroup.eachLayer(layer => {
+                            if (layer instanceof L.Polyline) trackingOverlayGroup.removeLayer(layer);
+                        });
+
+                        const targetCard = document.querySelector(`.provider-card[data-id="${item.id}"]`);
+                        if (targetCard) {
+                            targetCard.classList.add('active');
+                            targetCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+                            if (userLocation && map.hasLayer(trackingOverlayGroup)) {
+                                L.polyline([[userLocation.lat, userLocation.lng], [item.lat, item.lng]], {
+                                    color: 'var(--transport-color)',
+                                    weight: 4,
+                                    dashArray: '6, 8',
+                                    opacity: 0.75
+                                }).addTo(trackingOverlayGroup);
+                            }
+                        }
+                        // Show service areas for this facility
+                        if (item.facilityId) showServiceAreas(item.facilityId);
+                    });
+
+                    marker.addTo(markersGroup);
+                    markerMap.set(item.id, marker);
+                    bounds.push([item.lat, item.lng]);
+                }
+            });
+
+            if (bounds.length > 0 && !userLocation) {
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
+
+            // Make tabs inside Leaflet popups functional by wiring handlers each time a popup opens
+            map.on('popupopen', (e) => {
+                try {
+                    const popupEl = e.popup.getElement();
+                    if (!popupEl) return;
+                    const btns = popupEl.querySelectorAll('.tab-btn');
+                    const tabs = popupEl.querySelectorAll('.tab-content');
+                    btns.forEach(b => b.addEventListener('click', (ev) => {
+                        ev.preventDefault();
+                        btns.forEach(x => x.classList.remove('active'));
+                        tabs.forEach(t => t.classList.remove('active'));
+                        b.classList.add('active');
+                        const target = b.getAttribute('data-tab');
+                        const content = popupEl.querySelector(`.tab-content[data-tab="${target}"]`);
+                        if (content) content.classList.add('active');
+                    }));
+                } catch (err) {
+                    console.warn('Popup tab wiring failed', err);
+                }
+            });
+        }
+
+        document.getElementById('search').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase().trim();
+            if (!searchTerm) {
+                renderDashboard(providersData);
+                return;
+            }
+
+            const filteredData = providersData.filter(item => {
+                const searchMatch = (fields) => fields.some(cell => cell.value.toLowerCase().includes(searchTerm));
+                return searchMatch(item.infoFields) || searchMatch(item.transitFields) || item.name.toLowerCase().includes(searchTerm);
+            });
+            
+            renderDashboard(filteredData);
+        });
+
+        // Initialize Data Ingestion Load Execution
+        loadData();
+    </script>
+</body>
+</html>
