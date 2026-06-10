@@ -346,9 +346,10 @@
         }).addTo(map);
 
         // Geodatabase asset targeting hooks
-        const primaryJsonUrl = 'https://raw.githubusercontent.com/abornn-web/Philadelphia-Legal-Resources/refs/heads/main/Formatted.geojson';
+        const primaryJsonUrl = 'https://raw.githubusercontent.com/abornn-web/Philadelphia-Legal-Resources/main/Formatted.geojson';
         const fallbackJsonUrl = 'legal services.geojson'; 
-        const serviceAreaUrl = 'https://raw.githubusercontent.com/abornn-web/Philadelphia-Legal-Resources/refs/heads/main/full_service_area%20(1).geojson';
+        const serviceAreaUrl = 'https://raw.githubusercontent.com/abornn-web/Philadelphia-Legal-Resources/main/full_service_area%20(1).geojson';
+        const trolleyJsonUrl = 'https://raw.githubusercontent.com/abornn-web/Philadelphia-Legal-Resources/main/Trolley_Lines.geojson';
         
         let providersData = [];
         let userLocation = null; 
@@ -516,7 +517,7 @@
                 .catch(err => console.warn('Service area data fetch failed:', err));
 
             // Load trolley lines in parallel
-            fetch('Trolley_Lines.geojson')
+            fetch(trolleyJsonUrl)
                 .then(response => {
                     if (!response.ok) throw new Error("Trolley lines data unreachable.");
                     return response.json();
@@ -525,7 +526,20 @@
                     console.debug('Trolley lines loaded');
                     renderTrolleyLines(data);
                 })
-                .catch(err => console.warn('Trolley lines fetch failed:', err));
+                .catch(err => {
+                    console.warn('Trolley lines fetch failed:', err);
+                    // fallback to local file if available
+                    return fetch('Trolley_Lines.geojson')
+                        .then(response => {
+                            if (!response.ok) throw new Error("Local trolley lines data unreachable.");
+                            return response.json();
+                        })
+                        .then(localData => {
+                            console.debug('Local trolley lines loaded');
+                            renderTrolleyLines(localData);
+                        })
+                        .catch(innerErr => console.warn('Local trolley lines fallback failed:', innerErr));
+                });
         }
 
         function processData(geoJsonData) {
