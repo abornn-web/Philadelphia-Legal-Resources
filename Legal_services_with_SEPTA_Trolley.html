@@ -346,10 +346,10 @@
         }).addTo(map);
 
         // Geodatabase asset targeting hooks
-        const primaryJsonUrl = 'https://raw.githubusercontent.com/abornn-web/Philadelphia-Legal-Resources/main/Formatted.geojson';
+        const primaryJsonUrl = 'https://raw.githubusercontent.com/abornn-web/Philadelphia-Legal-Resources/refs/heads/main/Formatted.geojson';
         const fallbackJsonUrl = 'legal services.geojson'; 
-        const serviceAreaUrl = 'https://raw.githubusercontent.com/abornn-web/Philadelphia-Legal-Resources/main/full_service_area%20(1).geojson';
-        const trolleyJsonUrl = 'https://raw.githubusercontent.com/abornn-web/Philadelphia-Legal-Resources/main/Trolley_Lines.geojson';
+        const serviceAreaUrl = 'https://raw.githubusercontent.com/abornn-web/Philadelphia-Legal-Resources/refs/heads/main/full_service_area%20(1).geojson';
+        const trolleyLinesUrls = ['Trolley_Lines.geojson', '../Trolley_Lines.geojson'];
         
         let providersData = [];
         let userLocation = null; 
@@ -360,6 +360,7 @@
         let trackingOverlayGroup = L.layerGroup().addTo(map); 
         let serviceAreasGroup = L.layerGroup().addTo(map);
         let trolleyLinesGroup = L.layerGroup().addTo(map);
+        let trolleyFeatures = [];
         const markerMap = new Map();
 
         // Layer Toggling Controls
@@ -369,6 +370,43 @@
             "Service Areas": serviceAreasGroup
         };
         L.control.layers(null, overlayLayers, { collapsed: false, position: 'topright' }).addTo(map);
+
+        map.on('click', (e) => {
+            const original = e.originalEvent || e;
+            if (original && original.target && original.target.closest) {
+                if (original.target.closest('.leaflet-popup') || original.target.closest('.leaflet-control') || original.target.closest('.tab-btn') || original.target.closest('.provider-details-panel')) {
+                    return;
+                }
+            }
+            clearActiveService();
+        });
+
+        // Wire tab buttons inside Leaflet popups so users can switch between tabs
+        map.on('popupopen', (e) => {
+            try {
+                const popupEl = e.popup.getElement();
+                if (!popupEl) return;
+
+                const btns = popupEl.querySelectorAll('.tab-btn');
+                const tabs = popupEl.querySelectorAll('.tab-content');
+
+                btns.forEach(b => {
+                    // ensure clicks on popup buttons don't bubble to the map
+                    b.addEventListener('click', (ev) => {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        btns.forEach(x => x.classList.remove('active'));
+                        tabs.forEach(t => t.classList.remove('active'));
+                        b.classList.add('active');
+                        const target = b.getAttribute('data-tab');
+                        const content = popupEl.querySelector(`.tab-content[data-tab="${target}"]`);
+                        if (content) content.classList.add('active');
+                    });
+                });
+            } catch (err) {
+                console.warn('Popup tab wiring failed', err);
+            }
+        });
 
         function sanitizeCoordinate(val) {
             if (val === undefined || val === null) return NaN;
@@ -516,30 +554,18 @@
                 })
                 .catch(err => console.warn('Service area data fetch failed:', err));
 
-            // Load trolley lines in parallel
-            fetch(trolleyJsonUrl)
-                .then(response => {
-                    if (!response.ok) throw new Error("Trolley lines data unreachable.");
+            // Load trolley lines in parallel from the current directory or parent directory
+            Promise.any(trolleyLinesUrls.map(url =>
+                fetch(url).then(response => {
+                    if (!response.ok) throw new Error(`Trolley lines load failed for ${url}`);
                     return response.json();
                 })
-                .then(data => {
-                    console.debug('Trolley lines loaded');
-                    renderTrolleyLines(data);
-                })
-                .catch(err => {
-                    console.warn('Trolley lines fetch failed:', err);
-                    // fallback to local file if available
-                    return fetch('Trolley_Lines.geojson')
-                        .then(response => {
-                            if (!response.ok) throw new Error("Local trolley lines data unreachable.");
-                            return response.json();
-                        })
-                        .then(localData => {
-                            console.debug('Local trolley lines loaded');
-                            renderTrolleyLines(localData);
-                        })
-                        .catch(innerErr => console.warn('Local trolley lines fallback failed:', innerErr));
-                });
+            ))
+            .then(data => {
+                console.debug('Trolley lines loaded');
+                renderTrolleyLines(data);
+            })
+            .catch(err => console.warn('Trolley lines fetch failed:', err));
         }
 
         function processData(geoJsonData) {
@@ -629,6 +655,15 @@
             return { color: '#15803d', fillColor: '#15803d' }; // Dark green (15-20+)
         }
 
+        function clearActiveService() {
+            document.querySelectorAll('.provider-card.active').forEach(c => c.classList.remove('active'));
+            trackingOverlayGroup.eachLayer(layer => {
+                if (layer instanceof L.Polyline) trackingOverlayGroup.removeLayer(layer);
+            });
+            serviceAreasGroup.clearLayers();
+            selectedFacilityId = null;
+        }
+
         function showServiceAreas(facilityId) {
             serviceAreasGroup.clearLayers();
             selectedFacilityId = facilityId;
@@ -648,6 +683,11 @@
                         opacity: 0.8,
                         fillColor: colorScheme.fillColor,
                         fillOpacity: 0.25
+                    },
+                    onEachFeature(feature, layer) {
+                        layer.on('click', (evt) => {
+                            evt.originalEvent.stopPropagation();
+                        });
                     }
                 });
                 
@@ -676,6 +716,9 @@
 
         function renderTrolleyLines(trolleyData) {
             if (!trolleyData || !trolleyData.features) return;
+
+            // keep a lightweight reference to the raw features for proximity checks
+            trolleyFeatures = trolleyData.features || [];
 
             trolleyData.features.forEach(feature => {
                 const route = feature.properties.Route || 'Unknown';
@@ -731,6 +774,52 @@
                 const infoSectionHtml = buildTableRowsHtml(item.infoFields);
                 let transitSectionHtml = trackingBlockHtml + buildTableRowsHtml(item.transitFields);
 
+                // Augment Transportation content with nearby SEPTA trolley routes (within ~800m)
+                try {
+                    if (Array.isArray(trolleyFeatures) && trolleyFeatures.length > 0) {
+                        const nearby = [];
+                        trolleyFeatures.forEach(f => {
+                            try {
+                                const route = (f.properties && (f.properties.Route || f.properties.ROUTE)) || 'Unknown';
+                                const routeName = (f.properties && (f.properties.Route_Name || f.properties.ROUTE_NAME || f.properties.RouteName)) || '';
+                                const geom = f.geometry;
+                                if (!geom || !geom.coordinates) return;
+
+                                const lines = (geom.type === 'MultiLineString') ? geom.coordinates : (geom.type === 'LineString' ? [geom.coordinates] : []);
+                                let minDist = Infinity;
+                                for (let li=0; li<lines.length; li++) {
+                                    const line = lines[li];
+                                    for (let pi=0; pi<line.length; pi++) {
+                                        const coord = line[pi];
+                                        const lon = coord[0], lat = coord[1];
+                                        const d = map.distance([item.lat, item.lng], [lat, lon]);
+                                        if (d < minDist) minDist = d;
+                                        if (minDist <= 800) break;
+                                    }
+                                    if (minDist <= 800) break;
+                                }
+
+                                if (minDist <= 800) nearby.push({ route, routeName, meters: Math.round(minDist) });
+                            } catch (err) {
+                                // ignore feature errors
+                            }
+                        });
+
+                        if (nearby.length > 0) {
+                            let nearbyHtml = '<div class="info-row"><span class="info-label">Nearby SEPTA Routes</span><span class="info-value">';
+                            nearby.forEach(r => {
+                                const color = getTrolleyLineColor(r.route);
+                                const miles = (r.meters * 0.000621371).toFixed(2);
+                                nearbyHtml += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="width:12px;height:12px;background:${color};border-radius:3px;display:inline-block;"></span><strong>${r.route}</strong> ${r.routeName ? '- ' + r.routeName : ''} <span style="color:#64748b;margin-left:8px;">(${miles} mi)</span></div>`;
+                            });
+                            nearbyHtml += '</span></div>';
+                            transitSectionHtml += nearbyHtml;
+                        }
+                    }
+                } catch (err) {
+                    console.warn('Failed to compute nearby SEPTA routes', err);
+                }
+
                 // FIXED GOOGLE MAPS NAVIGATION API LINKS
                 if (!isNaN(item.lat) && !isNaN(item.lng)) {
                     const originParam = userLocation ? `&origin=${userLocation.lat},${userLocation.lng}` : '';
@@ -778,7 +867,11 @@
                 `;
 
                 card.addEventListener('click', (e) => {
-                    if (e.target.tagName === 'A' || e.target.parentElement.tagName === 'A') return;
+                    const clickedLink = e.target.tagName === 'A' || e.target.parentElement?.tagName === 'A';
+                    const clickedTabButton = !!e.target.closest('.tab-btn');
+                    const clickedDetailsPanel = !!e.target.closest('.provider-details-panel');
+
+                    if (clickedLink || clickedTabButton || clickedDetailsPanel) return;
 
                     const wasActive = card.classList.contains('active');
                     document.querySelectorAll('.provider-card').forEach(c => c.classList.remove('active'));
@@ -818,6 +911,7 @@
                     const tabs = c.querySelectorAll('.tab-content');
                     btns.forEach(b => b.addEventListener('click', (ev) => {
                         ev.preventDefault();
+                        ev.stopPropagation();
                         btns.forEach(x => x.classList.remove('active'));
                         tabs.forEach(t => t.classList.remove('active'));
                         b.classList.add('active');
@@ -846,7 +940,8 @@
                         <div class="popup-scroll-container">${compositeDetailsHtml}</div>
                     `);
 
-                    marker.on('click', () => {
+                    marker.on('click', (evt) => {
+                        evt.originalEvent?.stopPropagation();
                         document.querySelectorAll('.provider-card').forEach(c => c.classList.remove('active'));
                         trackingOverlayGroup.eachLayer(layer => {
                             if (layer instanceof L.Polyline) trackingOverlayGroup.removeLayer(layer);
@@ -880,26 +975,6 @@
                 map.fitBounds(bounds, { padding: [50, 50] });
             }
 
-            // Make tabs inside Leaflet popups functional by wiring handlers each time a popup opens
-            map.on('popupopen', (e) => {
-                try {
-                    const popupEl = e.popup.getElement();
-                    if (!popupEl) return;
-                    const btns = popupEl.querySelectorAll('.tab-btn');
-                    const tabs = popupEl.querySelectorAll('.tab-content');
-                    btns.forEach(b => b.addEventListener('click', (ev) => {
-                        ev.preventDefault();
-                        btns.forEach(x => x.classList.remove('active'));
-                        tabs.forEach(t => t.classList.remove('active'));
-                        b.classList.add('active');
-                        const target = b.getAttribute('data-tab');
-                        const content = popupEl.querySelector(`.tab-content[data-tab="${target}"]`);
-                        if (content) content.classList.add('active');
-                    }));
-                } catch (err) {
-                    console.warn('Popup tab wiring failed', err);
-                }
-            });
         }
 
         document.getElementById('search').addEventListener('input', (e) => {
