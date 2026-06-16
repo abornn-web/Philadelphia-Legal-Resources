@@ -10135,14 +10135,22 @@
         let serviceAreasGroup = L.layerGroup().addTo(map);
         let trolleyLinesGroup = L.layerGroup();
         let trolleyFeatures = [];
+        const trolleyRouteGroups = {};
+        const trolleyRouteKeys = ['T1','T2','T3','T4','T5','G1','D1','D2'];
+        trolleyRouteKeys.forEach(route => {
+            trolleyRouteGroups[route] = L.layerGroup();
+        });
         const markerMap = new Map();
 
         // Layer Toggling Controls
         const overlayLayers = {
             "Distance Vectors & Routing": trackingOverlayGroup,
-            "SEPTA Trolley Lines": trolleyLinesGroup,
+            "All SEPTA Trolley Lines": trolleyLinesGroup,
             "Service Areas": serviceAreasGroup
         };
+        trolleyRouteKeys.forEach(route => {
+            overlayLayers[`SEPTA ${route}`] = trolleyRouteGroups[route];
+        });
         L.control.layers(null, overlayLayers, { collapsed: false, position: 'topright' }).addTo(map);
 
         map.on('click', (e) => {
@@ -10207,12 +10215,32 @@
             let _geoWatchId = null;
             let _userMarker = null;
             let _userAccuracy = null;
+            let _permissionState = 'prompt';
+            let _locationPrompted = false;
+            const permissionRequestedKey = 'phlLegalGeolocationRequested';
+            const permissionDeniedKey = 'phlLegalGeolocationDenied';
             const _tokenEl = document.getElementById('location-token');
             const _accEl = document.getElementById('location-accuracy');
+            const savedRequested = localStorage.getItem(permissionRequestedKey) === 'true';
+            const savedDenied = localStorage.getItem(permissionDeniedKey) === 'true';
+            _locationPrompted = savedRequested;
+            if (savedDenied) {
+                _permissionState = 'denied';
+            }
+
+            function updateLocationStatus(text, clickable = false) {
+                if (!_tokenEl) return;
+                _tokenEl.textContent = text;
+                _tokenEl.style.cursor = clickable ? 'pointer' : 'default';
+                _tokenEl.title = clickable ? 'Click to enable location services' : '';
+                _tokenEl.style.opacity = clickable ? '1' : '0.85';
+            }
 
             function startUserTracking() {
-                if (_geoWatchId !== null) return; // already tracking
-
+                if (_geoWatchId !== null || _permissionState === 'denied') return;
+                if (_locationPrompted) return;
+                _locationPrompted = true;
+                localStorage.setItem(permissionRequestedKey, 'true');
                 if (_tokenEl) _tokenEl.textContent = 'Location services: Requesting...';
 
                 _geoWatchId = navigator.geolocation.watchPosition(
@@ -10223,7 +10251,7 @@
 
                         userLocation = { lat, lng };
 
-                        if (_tokenEl) _tokenEl.textContent = 'Location services: Sharing';
+                        if (_tokenEl) updateLocationStatus('Location services: Sharing', false);
                         if (_accEl) _accEl.textContent = `Accuracy: ${Math.round(accuracy)} m`;
 
                         if (_userMarker) {
@@ -10251,7 +10279,6 @@
                         // Re-render UI list layout if geo-data streaming finishes early
                         if (providersData.length > 0) renderDashboard(providersData);
 
-                        // fly to user on first fix
                         if (!_userMarker._hadFlyTo) {
                             map.flyTo([lat, lng], 14);
                             _userMarker._hadFlyTo = true;
@@ -10263,14 +10290,69 @@
                         document.getElementById('list').insertAdjacentHTML('afterbegin', `
                             <p style="color:red; font-size:0.9rem; padding:12px;"><b>Geolocation Error:</b> ${msg}</p>
                         `);
-                        if (_tokenEl) _tokenEl.textContent = 'Location services: Not sharing';
+                        if (_tokenEl) updateLocationStatus('Location services: Not sharing', false);
                         if (_accEl) _accEl.textContent = 'Accuracy: N/A';
+                        if (err && err.code === 1) {
+                            _permissionState = 'denied';
+                            localStorage.setItem(permissionDeniedKey, 'true');
+                        }
                     },
                     { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
                 );
             }
 
-            function stopUserTracking() {
+            function requestLocationOnce() {
+                if (_locationPrompted || _geoWatchId !== null || _permissionState === 'denied') return;
+                startUserTracking();
+            }
+
+            function resolvePermissionState() {
+                if (savedDenied) {
+                    updateLocationStatus('Location services: Denied', false);
+                    if (_accEl) _accEl.textContent = 'Accuracy: N/A';
+                    return;
+                }
+
+                if (!navigator.permissions) {
+                    updateLocationStatus('Location services: Click to enable', true);
+                    return;
+                }
+
+                navigator.permissions.query({ name: 'geolocation' }).then(status => {
+                    _permissionState = status.state;
+                    if (status.state === 'granted') {
+                        startUserTracking();
+                    } else if (status.state === 'prompt' && !_locationPrompted) {
+                        updateLocationStatus('Location services: Click to enable', true);
+                    } else if (status.state === 'prompt' && _locationPrompted) {
+                        updateLocationStatus('Location services: Permission requested', false);
+                    } else {
+                        updateLocationStatus('Location services: Denied', false);
+                        if (_accEl) _accEl.textContent = 'Accuracy: N/A';
+                    }
+
+                    status.onchange = () => {
+                        _permissionState = status.state;
+                        if (status.state === 'granted') {
+                            startUserTracking();
+                        } else if (status.state === 'denied') {
+                            updateLocationStatus('Location services: Denied', false);
+                            if (_accEl) _accEl.textContent = 'Accuracy: N/A';
+                        }
+                    };
+                }).catch(() => {
+                    updateLocationStatus('Location services: Click to enable', true);
+                });
+            }
+
+            if (_tokenEl) {
+                _tokenEl.addEventListener('click', requestLocationOnce);
+            }
+            resolvePermissionState();
+
+            // Expose functions for debugging and optional manual control
+            window.startUserTracking = startUserTracking;
+            window.stopUserTracking = function() {
                 if (_geoWatchId !== null) {
                     navigator.geolocation.clearWatch(_geoWatchId);
                     _geoWatchId = null;
@@ -10283,16 +10365,9 @@
                     trackingOverlayGroup.removeLayer(_userAccuracy);
                     _userAccuracy = null;
                 }
-                if (_tokenEl) _tokenEl.textContent = 'Location services: Not sharing';
+                if (_tokenEl) updateLocationStatus('Location services: Not sharing', false);
                 if (_accEl) _accEl.textContent = 'Accuracy: N/A';
-            }
-
-            // Expose functions for debugging and optional manual control
-            window.startUserTracking = startUserTracking;
-            window.stopUserTracking = stopUserTracking;
-
-            // Start tracking automatically
-            startUserTracking();
+            };
         })();
 
         // Parallel Fallback Data Ingestion Interface Engine
@@ -10534,12 +10609,13 @@
             if (!trolleyData || !trolleyData.features) return;
 
             // clear previous trolley layers and keep a lightweight reference to the raw features for proximity checks
+            Object.values(trolleyRouteGroups).forEach(group => group.clearLayers());
             try { trolleyLinesGroup.clearLayers(); } catch (e) {}
             trolleyFeatures = trolleyData.features || [];
 
             trolleyData.features.forEach(feature => {
-                const route = feature.properties.Route || 'Unknown';
-                const routeName = feature.properties.Route_Name || '';
+                const route = (feature.properties && (feature.properties.Route || feature.properties.ROUTE)) || 'Unknown';
+                const routeName = (feature.properties && (feature.properties.Route_Name || feature.properties.ROUTE_NAME || feature.properties.RouteName)) || '';
                 const lineColor = getTrolleyLineColor(route);
 
                 const layer = L.geoJSON(feature, {
@@ -10552,11 +10628,19 @@
                 });
 
                 layer.bindPopup(`<b>SEPTA Trolley Line</b><br><b>Route:</b> ${route}<br><b>Name:</b> ${routeName}`);
-                layer.addTo(trolleyLinesGroup);
+
+                const routeGroup = trolleyRouteGroups[route];
+                if (routeGroup) {
+                    routeGroup.addLayer(layer);
+                } else {
+                    trolleyLinesGroup.addLayer(layer);
+                }
             });
-            if (!map.hasLayer(trolleyLinesGroup)) {
-                trolleyLinesGroup.addTo(map);
-            }
+
+            trolleyLinesGroup.clearLayers();
+            trolleyRouteKeys.forEach(route => {
+                trolleyLinesGroup.addLayer(trolleyRouteGroups[route]);
+            });
 
             console.debug('Rendered trolley lines');
         }
@@ -10594,52 +10678,6 @@
 
                 const infoSectionHtml = buildTableRowsHtml(item.infoFields);
                 let transitSectionHtml = trackingBlockHtml + buildTableRowsHtml(item.transitFields);
-
-                // Augment Transportation content with nearby SEPTA trolley routes (within ~800m)
-                try {
-                    if (Array.isArray(trolleyFeatures) && trolleyFeatures.length > 0) {
-                        const nearby = [];
-                        trolleyFeatures.forEach(f => {
-                            try {
-                                const route = (f.properties && (f.properties.Route || f.properties.ROUTE)) || 'Unknown';
-                                const routeName = (f.properties && (f.properties.Route_Name || f.properties.ROUTE_NAME || f.properties.RouteName)) || '';
-                                const geom = f.geometry;
-                                if (!geom || !geom.coordinates) return;
-
-                                const lines = (geom.type === 'MultiLineString') ? geom.coordinates : (geom.type === 'LineString' ? [geom.coordinates] : []);
-                                let minDist = Infinity;
-                                for (let li=0; li<lines.length; li++) {
-                                    const line = lines[li];
-                                    for (let pi=0; pi<line.length; pi++) {
-                                        const coord = line[pi];
-                                        const lon = coord[0], lat = coord[1];
-                                        const d = map.distance([item.lat, item.lng], [lat, lon]);
-                                        if (d < minDist) minDist = d;
-                                        if (minDist <= 800) break;
-                                    }
-                                    if (minDist <= 800) break;
-                                }
-
-                                if (minDist <= 800) nearby.push({ route, routeName, meters: Math.round(minDist) });
-                            } catch (err) {
-                                // ignore feature errors
-                            }
-                        });
-
-                        if (nearby.length > 0) {
-                            let nearbyHtml = '<div class="info-row"><span class="info-label">Nearby SEPTA Routes</span><span class="info-value">';
-                            nearby.forEach(r => {
-                                const color = getTrolleyLineColor(r.route);
-                                const miles = (r.meters * 0.000621371).toFixed(2);
-                                nearbyHtml += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="width:12px;height:12px;background:${color};border-radius:3px;display:inline-block;"></span><strong>${r.route}</strong> ${r.routeName ? '- ' + r.routeName : ''} <span style="color:#64748b;margin-left:8px;">(${miles} mi)</span></div>`;
-                            });
-                            nearbyHtml += '</span></div>';
-                            transitSectionHtml += nearbyHtml;
-                        }
-                    }
-                } catch (err) {
-                    console.warn('Failed to compute nearby SEPTA routes', err);
-                }
 
                 // FIXED GOOGLE MAPS NAVIGATION API LINKS
                 if (!isNaN(item.lat) && !isNaN(item.lng)) {
