@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Philadelphia Legal Resources Map Dashboard</title>
+    <title>Legal Resources Mapping Dashboard</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
     
     <style>
-        /* Professional Institutional Palette & Typography Matrix */
+        /* Professional Institutional Typography Matrix & Palette */
         :root {
             --bg-primary: #ffffff;
             --bg-sidebar: #f8fafc;
@@ -129,13 +129,13 @@
             line-height: 1.4;
         }
 
-        /* Comprehensive Structural Spreadsheet Row Inspector Panel */
+        /* Spreadsheet Row Inspector Panel */
         .provider-details-panel {
             margin-top: 14px;
             padding-top: 14px;
             border-top: 1px dashed var(--border-color);
             font-size: 0.85rem;
-            display: none; /* Smoothly uncollapses only when active */
+            display: none;
         }
 
         .provider-card.active .provider-details-panel {
@@ -169,7 +169,7 @@
         .info-value {
             color: var(--text-main);
             line-height: 1.4;
-            white-space: pre-line; /* Renders layout line breaks inside addresses correctly */
+            white-space: pre-line; /* Preserves multiline addresses clean breaks */
             word-break: break-word;
         }
 
@@ -188,7 +188,7 @@
             height: 100%;
         }
 
-        /* Stylized Interactive Map Popups */
+        /* Stylized Map Viewport Popups */
         .leaflet-popup-content-wrapper {
             border-radius: 8px;
             padding: 8px;
@@ -233,10 +233,10 @@
         <div id="sidebar">
             <div class="sidebar-header">
                 <h1>Legal Services Directory</h1>
-                <p>Philadelphia Regional Interactive Infrastructure Map</p>
+                <p>Regional Interactive Infrastructure Spatial Map</p>
             </div>
             <div class="search-container">
-                <input type="text" id="search" class="search-input" placeholder="Search rows (e.g. zip code, service type, language)...">
+                <input type="text" id="search" class="search-input" placeholder="Search rows (e.g. zip code, practice area, languages)...">
             </div>
             <div id="list" class="list-container">
                 </div>
@@ -247,115 +247,80 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
     
     <script>
-        // Center viewport initially on Philadelphia City Hall
+        // Anchor viewport coordinates baseline centered over Philadelphia
         const map = L.map('map').setView([39.9526, -75.1652], 12);
 
-        // FIX: Replaced OpenStreetMap with high-fidelity Esri World Street Map Tiles
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 19,
+        // FEATURE UPDATE: Integrated explicit Google Roads tile mapping layers
+        L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            maxZoom: 21,
             crossOrigin: true,
-            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri Korea, Esri (Thailand), MapmyIndia, NGCC, &copy; OpenStreetMap contributors, and the GIS User Community'
+            attribution: '&copy; Google Maps Road Layer Baseline'
         }).addTo(map);
 
-        // Relative link uses file directly within the local repository path
-        const csvUrl = 'Github Legal Resource Data_Base - GIS Data_Base Legal Resource.csv';
+        // Point target directly to the local JSON/GeoJSON resource
+        const jsonUrl = 'legal services.geojson';
         
         let providersData = [];
-        let originalHeaders = [];
         let markersGroup = L.layerGroup().addTo(map);
         const markerMap = new Map();
 
-        // High-Fidelity Character State Machine CSV Parser (Handles wrapped strings, breaks, and embedded commas)
-        function parseCSV(text) {
-            const lines = [];
-            let row = [""];
-            let inQuotes = false;
-
-            for (let i = 0; i < text.length; i++) {
-                const c = text[i];
-                const next = text[i+1];
-
-                if (c === '"' || c === "'") {
-                    if (inQuotes && next === c) {
-                        row[row.length - 1] += c;
-                        i++;
-                    } else {
-                        inQuotes = !inQuotes;
-                    }
-                } else if (c === ',' && !inQuotes) {
-                    row.push('');
-                } else if ((c === '\r' || c === '\n') && !inQuotes) {
-                    if (c === '\r' && next === '\n') i++;
-                    lines.push(row);
-                    row = [''];
-                } else {
-                    row[row.length - 1] += c;
-                }
-            }
-            if (row.length > 1 || row[0] !== '') lines.push(row);
-            return lines;
-        }
-
+        // Safe coordinates parsing sanitizer engine
         function sanitizeCoordinate(val) {
-            if (!val) return NaN;
-            let cleaned = String(val).replace(/^["']|["']$/g, '').trim();
-            cleaned = cleaned.replace(/^(-?)0+(?=\d)/, '$1'); // Fix leading zero offsets
-            const parsed = parseFloat(cleaned);
+            if (val === undefined || val === null) return NaN;
+            const parsed = parseFloat(val);
             return isNaN(parsed) ? NaN : parsed;
         }
 
-        // Fetch local database resource
-        fetch(csvUrl)
+        // Load and parse the GeoJSON data matrix
+        fetch(jsonUrl)
             .then(response => {
                 if (!response.ok) {
-                    throw new Error(`Could not find the file "${csvUrl}". Ensure it sits in the exact same directory as index.html.`);
+                    throw new Error(`Failed to locate resource file "${jsonUrl}". Verify that it sits in the same directory path.`);
                 }
-                return response.text();
+                return response.json();
             })
-            .then(csvText => {
-                const parsedLines = parseCSV(csvText);
-                if (parsedLines.length === 0) return;
+            .then(geoJsonData => {
+                if (!geoJsonData || !geoJsonData.features) {
+                    throw new Error("Invalid format layout loaded. Expected valid GeoJSON feature vectors collection.");
+                }
 
-                // Extract exact layout parameters
-                originalHeaders = parsedLines[0].map(h => h.trim());
-                const lowercaseHeaders = originalHeaders.map(h => h.toLowerCase());
+                // Process GeoJSON structure schema points
+                providersData = geoJsonData.features.map((feature, idx) => {
+                    const props = feature.properties || {};
+                    
+                    // Isolate layout coordinates values safely out of property or fallback geometry keys
+                    let latVal = sanitizeCoordinate(props.lat);
+                    let lngVal = sanitizeCoordinate(props.long || props.lng);
 
-                // Column matching positions
-                const nameIdx = lowercaseHeaders.findIndex(h => h.includes('organization') || h.includes('name')) !== -1 ? lowercaseHeaders.findIndex(h => h.includes('organization') || h.includes('name')) : 0;
-                const latIdx = lowercaseHeaders.findIndex(h => h === 'latitude' || h === 'lat');
-                const lngIdx = lowercaseHeaders.findIndex(h => h === 'longitude' || h === 'long' || h === 'lng');
+                    if (isNaN(latVal) || isNaN(lngVal)) {
+                        if (feature.geometry && feature.geometry.coordinates) {
+                            lngVal = sanitizeCoordinate(feature.geometry.coordinates[0]);
+                            latVal = sanitizeCoordinate(feature.geometry.coordinates[1]);
+                        }
+                    }
 
-                providersData = parsedLines.slice(1).map((rowValues, idx) => {
-                    // Populate comprehensive columns maps
-                    const fullRowMap = [];
-                    originalHeaders.forEach((header, index) => {
-                        const cellVal = rowValues[index] !== undefined ? rowValues[index].trim() : '';
-                        fullRowMap.push({
-                            label: header,
-                            value: cellVal
+                    // Map all native key value pairs for structural data row inspector
+                    const parsedRowArray = [];
+                    Object.keys(props).forEach(key => {
+                        let val = props[key];
+                        
+                        // Transform boolean flags immediately to legible labels
+                        if (typeof val === 'boolean') {
+                            val = val ? 'Yes' : 'No';
+                        }
+                        
+                        parsedRowArray.push({
+                            label: key,
+                            value: val !== null && val !== undefined ? String(val).trim() : ''
                         });
                     });
 
-                    let latVal = latIdx !== -1 ? sanitizeCoordinate(rowValues[latIdx]) : NaN;
-                    let lngVal = lngIdx !== -1 ? sanitizeCoordinate(rowValues[lngIdx]) : NaN;
-
-                    // Fallback scanner to isolate floating coordinates in columns
-                    if (isNaN(latVal) || isNaN(lngVal)) {
-                        rowValues.forEach(val => {
-                            const num = sanitizeCoordinate(val);
-                            if (!isNaN(num)) {
-                                if (num >= 39.0 && num <= 41.5 && isNaN(latVal)) latVal = num;
-                                if (num >= -76.5 && num <= -73.5 && isNaN(lngVal)) lngVal = num;
-                            }
-                        });
-                    }
-
                     return {
                         id: idx,
-                        name: rowValues[nameIdx] || 'Unnamed Organization',
+                        name: props.Organization || 'Unnamed Organization',
                         lat: latVal,
                         lng: lngVal,
-                        rowData: fullRowMap
+                        rowData: parsedRowArray
                     };
                 });
 
@@ -363,10 +328,10 @@
             })
             .catch(err => {
                 console.error(err);
-                document.getElementById('list').innerHTML = `<p style="color:red; font-size:0.9rem; padding:16px;"><b>Database Configuration Error:</b> ${err.message}</p>`;
+                document.getElementById('list').innerHTML = `<p style="color:red; font-size:0.9rem; padding:16px;"><b>JSON Processing Error:</b> ${err.message}</p>`;
             });
 
-        // Combined Master Layout Render Pipeline
+        // Dashboard Core Render Pipeline Loop
         function renderDashboard(data) {
             markersGroup.clearLayers();
             markerMap.clear();
@@ -376,15 +341,17 @@
             const bounds = [];
 
             data.forEach(item => {
-                // Formulate detailed layout panels parsing every cell sequentially
-                let fullDetailsHtml = '<div class="info-table">';
+                // Dynamically compile Spreadsheet Row Inspector contents
+                let detailsHtml = '<div class="info-table">';
                 item.rowData.forEach(cell => {
+                    // Ignore empty fields or irrelevant system metrics
                     if (cell.value && cell.value !== '0' && cell.value.toLowerCase() !== 'n/a' && cell.value !== '') {
                         let displayValue = cell.value;
                         
-                        // Parse URLs, direct dials, and mailing networks automatically into interactive targets
-                        if (displayValue.startsWith('http://') || displayValue.startsWith('https://')) {
-                            displayValue = `<a href="${displayValue}" target="_blank">Open Resource Site 🌐</a>`;
+                        // Auto hyperlink target upgrades (URLs, Emails, Phone Numbers)
+                        if (displayValue.startsWith('http://') || displayValue.startsWith('https://') || cell.label.toLowerCase() === 'url') {
+                            let linkHref = displayValue.startsWith('http') ? displayValue : `https://${displayValue}`;
+                            displayValue = `<a href="${linkHref}" target="_blank">Open Resource Site 🌐</a>`;
                         } else if (cell.label.toLowerCase().includes('phone') || cell.label.toLowerCase().includes('number')) {
                             const numericPhone = displayValue.replace(/\D/g, '');
                             if (numericPhone.length >= 10) {
@@ -394,7 +361,7 @@
                             displayValue = `<a href="mailto:${displayValue}">${displayValue}</a>`;
                         }
 
-                        fullDetailsHtml += `
+                        detailsHtml += `
                             <div class="info-row">
                                 <span class="info-label">${cell.label}</span>
                                 <span class="info-value">${displayValue}</span>
@@ -402,22 +369,21 @@
                         `;
                     }
                 });
-                fullDetailsHtml += '</div>';
+                detailsHtml += '</div>';
 
-                // Build Sidebar Cards
+                // Append Sidebar Cards Structures
                 const card = document.createElement('div');
                 card.className = 'provider-card';
                 card.setAttribute('data-id', item.id);
                 card.innerHTML = `
                     <div class="provider-name">${item.name}</div>
                     <div class="provider-details-panel">
-                        ${fullDetailsHtml}
+                        ${detailsHtml}
                     </div>
                 `;
 
-                // Handle List Row Item Interactivity -> Expand details, fly map, trigger popup
+                // Handle Sidebar click events
                 card.addEventListener('click', (e) => {
-                    // Prevent closing panel if clicking a valid internal hyperlink target
                     if (e.target.tagName === 'A' || e.target.parentElement.tagName === 'A') return;
 
                     const wasActive = card.classList.contains('active');
@@ -437,9 +403,9 @@
 
                 listContainer.appendChild(card);
 
-                /* CRITICAL FILTER STIPULATION: STRICT CONTINENTAL UNITED STATES BOUNDING BOX.
-                   Guarantees anomalous coordinate drops outside US borders are never mapped.
-                   US Bounds approx: Lat [24.3963, 49.3843], Long [-125.0011, -66.9345]
+                /* STRICT GEOGRAPHIC BOUNDS SECURITY OVERLAY
+                   Enforces continental United States map spatial boundaries:
+                   Lat [24.396308, 49.384358], Long [-125.0011, -66.93457]
                 */
                 const isInsideUS = !isNaN(item.lat) && !isNaN(item.lng) &&
                                    item.lat >= 24.396308 && item.lat <= 49.384358 &&
@@ -458,12 +424,12 @@
                     const popupContent = `
                         <div class="popup-header-title">${item.name}</div>
                         <div class="popup-scroll-container">
-                            ${fullDetailsHtml}
+                            ${detailsHtml}
                         </div>
                     `;
                     marker.bindPopup(popupContent);
 
-                    // Map Marker -> Sync Selection back to Expand Sidebar List Matrix
+                    // Coordinate Map Clicks -> Active View Sidebar List sync response
                     marker.on('click', () => {
                         document.querySelectorAll('.provider-card').forEach(c => c.classList.remove('active'));
                         const targetCard = document.querySelector(`.provider-card[data-id="${item.id}"]`);
@@ -479,13 +445,13 @@
                 }
             });
 
-            // Adjust spatial tracking fields dynamically to match filtered plots
+            // Adjust viewport bound calculations automatically
             if (bounds.length > 0) {
                 map.fitBounds(bounds, { padding: [50, 50] });
             }
         }
 
-        // Global Universal Matrix Filter Bar
+        // Global Dynamic Inspector Search Matrix
         document.getElementById('search').addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase().trim();
             if (!searchTerm) {
