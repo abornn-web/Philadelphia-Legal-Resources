@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Methodology — Philadelphia Legal Resources</title>
+<meta name="description" content="Data architecture, interface and interaction design, and a plain-language guide to the Philadelphia Legal Resources mapping project.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0e1f2c;--ink-soft:#27414c;--paper:#f4f6f4;--panel:#e9efeb;--panel-2:#e0e8e3;
+    --teal:#2c6a66;--teal-deep:#1a4d4a;--brass:#9a6a25;--rule:#cdd7d2;--rule-strong:#aab8b2;
+    --muted:#566a66;--white:#ffffff;
+    --serif:"Newsreader",Georgia,serif;--sans:"Public Sans",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace;
+    --maxw:1120px;--gutter:clamp(20px,5vw,56px);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{font-family:var(--sans);color:var(--ink);background:var(--paper);line-height:1.6;-webkit-font-smoothing:antialiased}
+  a{color:var(--teal-deep);text-decoration:none}
+  a:hover{color:var(--brass)}
+  ::selection{background:var(--teal);color:#fff}
+  :focus-visible{outline:2.5px solid var(--brass);outline-offset:3px;border-radius:2px}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding-left:var(--gutter);padding-right:var(--gutter)}
+  .narrow{max-width:760px}
+
+  .eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--teal-deep);display:flex;align-items:center;gap:12px}
+  .eyebrow::after{content:"";flex:1;height:1px;background:var(--rule-strong)}
+
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(244,246,244,.86);backdrop-filter:saturate(140%) blur(8px);border-bottom:1px solid var(--rule)}
+  .topbar .wrap{display:flex;align-items:center;justify-content:space-between;height:62px;gap:24px}
+  .brand{font-family:var(--mono);font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);font-weight:500;line-height:1.2}
+  .brand span{display:block;color:var(--muted);font-size:.66rem;letter-spacing:.16em}
+  .nav{display:flex;align-items:center;gap:26px}
+  .nav a{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+  .nav a:hover{color:var(--brass)}
+  .nav .map-link{border:1px solid var(--teal-deep);color:var(--teal-deep);padding:7px 14px;border-radius:2px;transition:background .15s,color .15s}
+  .nav .map-link:hover{background:var(--teal-deep);color:#fff}
+  @media (max-width:820px){.nav a:not(.map-link){display:none}}
+
+  /* doc header */
+  .dochead{border-bottom:1px solid var(--rule);padding:clamp(48px,8vw,86px) 0 clamp(34px,5vw,52px)}
+  .dochead .eyebrow{margin-bottom:24px;max-width:520px}
+  .dochead h1{font-family:var(--serif);font-weight:500;font-size:clamp(2.1rem,5vw,3.4rem);line-height:1.08;letter-spacing:-.01em;max-width:18ch}
+  .dochead h1 em{font-style:italic;color:var(--teal-deep)}
+  .dochead .sub{margin-top:22px;font-size:1.1rem;color:var(--ink-soft);max-width:64ch;line-height:1.6}
+  .crumb{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:26px;display:flex;gap:10px;align-items:center}
+  .crumb a{color:var(--muted)}.crumb a:hover{color:var(--brass)}
+
+  /* contents */
+  .toc{display:flex;flex-wrap:wrap;gap:10px;margin-top:34px}
+  .toc a{font-family:var(--mono);font-size:.74rem;letter-spacing:.04em;color:var(--ink-soft);border:1px solid var(--rule);background:var(--white);padding:8px 13px;border-radius:2px}
+  .toc a:hover{border-color:var(--teal);color:var(--teal-deep)}
+
+  /* article */
+  article{padding:clamp(46px,7vw,78px) 0}
+  .sec{margin-bottom:clamp(46px,7vw,72px);scroll-margin-top:78px}
+  .sec .lab{font-family:var(--mono);font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--brass);margin-bottom:14px}
+  .sec h2{font-family:var(--serif);font-weight:500;font-size:clamp(1.6rem,3.2vw,2.3rem);line-height:1.14;letter-spacing:-.01em;margin-bottom:22px}
+  .sec h2 em{font-style:italic;color:var(--teal-deep)}
+  .sec h3{font-family:var(--serif);font-weight:500;font-size:1.3rem;margin:34px 0 12px;color:var(--ink)}
+  .sec p{font-size:1.07rem;line-height:1.75;color:var(--ink-soft);max-width:68ch}
+  .sec p + p{margin-top:1.1em}
+  .sec ul{list-style:none;max-width:68ch;margin-top:18px}
+  .sec ul li{position:relative;padding:13px 0 13px 28px;border-bottom:1px solid var(--rule);font-size:1.04rem;line-height:1.65;color:var(--ink-soft)}
+  .sec ul li::before{content:"§";position:absolute;left:0;font-family:var(--serif);font-style:italic;color:var(--teal-deep)}
+  .sec ul li strong{color:var(--ink);font-weight:600}
+  .sec ol{counter-reset:step;list-style:none;max-width:68ch;margin-top:18px}
+  .sec ol li{counter-increment:step;position:relative;padding:13px 0 13px 40px;border-bottom:1px solid var(--rule);font-size:1.04rem;line-height:1.65;color:var(--ink-soft)}
+  .sec ol li::before{content:counter(step,decimal-leading-zero);position:absolute;left:0;font-family:var(--mono);font-size:.82rem;color:var(--brass);top:15px}
+  .callout{background:var(--white);border:1px solid var(--rule);border-left:3px solid var(--teal);border-radius:3px;padding:22px 24px;margin:26px 0;max-width:68ch}
+  .callout .t{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--teal-deep);margin-bottom:10px}
+  .callout p{font-size:1rem;margin:0}
+
+  /* references */
+  .ref-band{background:var(--ink);color:#dfe7e3;padding:clamp(48px,8vw,86px) 0}
+  .ref-band .eyebrow{color:#8fc0bc}
+  .ref-band .eyebrow::after{background:#2c4853}
+  .ref-band h2{font-family:var(--serif);font-weight:500;color:#fff;font-size:clamp(1.5rem,3vw,2.1rem);margin:22px 0 30px}
+  ol.refs{list-style:none;counter-reset:r;max-width:80ch}
+  ol.refs li{counter-increment:r;position:relative;padding:0 0 22px 40px;line-height:1.6;font-size:.99rem;color:#cdd9d5}
+  ol.refs li::before{content:"[" counter(r) "]";position:absolute;left:0;font-family:var(--mono);font-size:.8rem;color:var(--brass)}
+  ol.refs li .src{color:#fff;font-weight:600}
+  ol.refs li a{color:#9fd3cf;word-break:break-word}
+  ol.refs li a:hover{color:#ffd9a3}
+  .perma-note{margin-top:8px;font-size:.85rem;color:#8fa6a1;line-height:1.55;border-top:1px solid #2c4853;padding-top:16px;max-width:80ch}
+
+  footer.site{background:var(--ink);color:#9fb2ad;padding:34px 0 50px;border-top:1px solid #2c4853}
+  footer.site .wrap{display:flex;flex-wrap:wrap;gap:24px;justify-content:space-between;align-items:center}
+  footer.site .who{font-size:.9rem;max-width:50ch;line-height:1.55}
+  footer.site .who strong{color:#e7efeb}
+  footer.site .flinks{display:flex;gap:20px;flex-wrap:wrap}
+  footer.site .flinks a{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:#b9c8c4}
+  footer.site .flinks a:hover{color:#ffd9a3}
+
+  .reveal{opacity:0;transform:translateY(16px);transition:opacity .7s ease,transform .7s ease}
+  .reveal.in{opacity:1;transform:none}
+  @media (prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand">Philadelphia Legal Resources<span>Law &times; Digital Humanities</span></div>
+    <nav class="nav" aria-label="Primary">
+      <a href="index.html">Overview</a>
+      <a href="#architecture">Data</a>
+      <a href="#interface">Interface</a>
+      <a href="#guide">Guide</a>
+      <a class="map-link" href="map.html" target="_blank" rel="noopener">Open map &#8599;</a>
+    </nav>
+  </div>
+</header>
+
+<section class="dochead">
+  <div class="wrap narrow">
+    <div class="crumb"><a href="index.html">&larr; Overview</a> <span>/</span> <span>Methodology</span></div>
+    <div class="eyebrow">Methodology</div>
+    <h1>How the resource was <em>built</em> &mdash; and how it works.</h1>
+    <p class="sub">This project sits at the intersection of law and the digital humanities. What follows documents its data architecture, its interface and interaction design, and a plain-language guide to using the map &mdash; written so that a reader with no technical background can follow it.</p>
+    <nav class="toc" aria-label="Contents">
+      <a href="#architecture">01 &middot; Data architecture</a>
+      <a href="#interface">02 &middot; Interface &amp; interaction</a>
+      <a href="#guide">03 &middot; Plain-language guide</a>
+      <a href="#references">References</a>
+    </nav>
+  </div>
+</section>
+
+<article>
+  <div class="wrap narrow">
+
+    <div class="sec reveal" id="architecture">
+      <div class="lab">01 &middot; Data Architecture</div>
+      <h2>Encoding the directory as <em>structured</em> geographic data</h2>
+      <p>The directory&#8217;s content is encoded as GeoJSON, the open standard (RFC&nbsp;7946) for representing geographic features and their attributes as JSON. Each legal-aid organization is modeled as a <strong>Feature</strong> with:</p>
+      <ul>
+        <li>a <strong>geometry object</strong> &mdash; a Point, given as longitude/latitude coordinates, and</li>
+        <li>a <strong>properties object</strong> &mdash; capturing organization name, legal service type, area of practice, address, transit proximity, languages offered, hours of operation, hotline availability, and contact information.</li>
+      </ul>
+      <div class="callout">
+        <div class="t">Why it matters</div>
+        <p>Structuring the data this way separates content (the providers and their attributes) from presentation (the interface), a core digital-humanities practice. It allows the same dataset to be reused for mapping, tabular analysis, or future research without modification.</p>
+      </div>
+    </div>
+
+    <div class="sec reveal" id="interface">
+      <div class="lab">02 &middot; Interface &amp; Interaction Design</div>
+      <h2>Three coordinated layers</h2>
+      <p>The interface is a single-page web application built with the Leaflet.js mapping library. Architecturally, it consists of three coordinated layers:</p>
+      <ul>
+        <li><strong>A map layer</strong> rendering each provider as a marker, plus optional overlays for SEPTA transit lines and legal service-area boundaries &mdash; so spatial reasoning (proximity, transit access) is made visible rather than left for the reader to infer.</li>
+        <li><strong>A sidebar directory layer</strong> listing every provider as a searchable, filterable card, giving a non-spatial entry point into the same dataset for users who prefer browsing text to navigating a map.</li>
+        <li><strong>A wayfinding layer</strong> that, on selection of a provider, computes straight-line distance to the user&#8217;s location, identifies the nearest transit line, and generates direct driving and walking links to mapping services &mdash; translating spatial data into an actionable next step.</li>
+      </ul>
+      <p>The application also implements a tiered data-loading strategy: it first attempts to retrieve the live dataset from a hosted repository, falls back to a local copy if the network request fails, and degrades gracefully &mdash; displaying an explicit error rather than a blank screen &mdash; if both fail. This reflects a design commitment appropriate to public-interest tools: the resource should remain inspectable and maintainable independent of any single point of failure.</p>
+    </div>
+
+    <div class="sec reveal" id="guide">
+      <div class="lab">03 &middot; A Plain-Language Guide</div>
+      <h2>How the website works</h2>
+      <p>This section explains, in everyday terms, what the website does and how it works. No technical background is needed.</p>
+
+      <h3>What the website does</h3>
+      <p>The website is an interactive map and directory of legal-aid organizations in and around Philadelphia. It helps someone who needs legal help find a nearby organization, see what kind of help that organization offers, check its hours and contact information, and get walking or driving directions to it.</p>
+
+      <h3>The two main parts of the screen</h3>
+      <ul>
+        <li><strong>A map on the right,</strong> with a pin for every legal-aid organization. Clicking a pin opens a short summary of that organization right on the map.</li>
+        <li><strong>A list on the left,</strong> showing every organization as a card you can scroll through. Typing into the search box at the top instantly narrows the list to matching organizations.</li>
+      </ul>
+      <p>The map and the list are always in sync: clicking a pin highlights its card in the list, and clicking a card moves the map to that organization and opens its details.</p>
+
+      <h3>What you can find for each organization</h3>
+      <ul>
+        <li>What kind of legal help they offer (for example, housing, immigration, or domestic-violence support).</li>
+        <li>Address, phone number, website, and hours &mdash; including whether they offer a 24/7 hotline or walk-in appointments.</li>
+        <li>The closest public-transit station and line, plus the approximate distance from you.</li>
+        <li>One-click links that open Google Maps with driving or walking directions already filled in.</li>
+      </ul>
+    </div>
+
+  </div>
+</article>
+
+<section class="ref-band" id="references">
+  <div class="wrap narrow">
+    <div class="eyebrow">References</div>
+    <h2>Sources &amp; standards</h2>
+    <ol class="refs">
+      <li><span class="src">Philadelphia Bar Association.</span> <em>Directory of Public Interest Legal Organizations.</em> <a href="https://www.philadelphiabar.org/?pg=PIDirectory" target="_blank" rel="noopener">philadelphiabar.org</a>. Source for organization records.</li>
+      <li><span class="src">The Disciplinary Board of the Supreme Court of Pennsylvania.</span> &ldquo;Pro Bono.&rdquo; <a href="https://www.padisciplinaryboard.org/for-attorneys/pro-bono" target="_blank" rel="noopener">padisciplinaryboard.org</a>. Accessed 24 April 2023.</li>
+      <li><span class="src">The GeoJSON Format.</span> RFC&nbsp;7946, Internet Engineering Task Force, 2016.</li>
+      <li><span class="src">Leaflet.</span> Open-source JavaScript library for interactive maps. <a href="https://leafletjs.com" target="_blank" rel="noopener">leafletjs.com</a>.</li>
+    </ol>
+    <p class="perma-note">Primary web sources have been archived via Perma.cc to preserve citation integrity over time.</p>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="who"><strong>Philadelphia Legal Resources</strong> &mdash; a digital humanities fellowship project by Andrew Bornn, supervised by Professor James English, Price Lab for Digital Humanities, University of Pennsylvania.</div>
+    <nav class="flinks" aria-label="Footer">
+      <a href="index.html">Overview</a>
+      <a href="map.html" target="_blank" rel="noopener">Map &#8599;</a>
+      <a href="Final_Legal_Organization_Spreadsheet.xlsx" download>Dataset</a>
+      <a href="https://github.com/abornn-web/Philadelphia-Legal-Resources" target="_blank" rel="noopener">GitHub &#8599;</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+  (function(){
+    var els=document.querySelectorAll('.reveal');
+    if(!('IntersectionObserver' in window)||window.matchMedia('(prefers-reduced-motion: reduce)').matches){els.forEach(function(e){e.classList.add('in')});return;}
+    var io=new IntersectionObserver(function(es){es.forEach(function(en){if(en.isIntersecting){en.target.classList.add('in');io.unobserve(en.target);}})},{threshold:.12,rootMargin:'0px 0px -8% 0px'});
+    els.forEach(function(e){io.observe(e)});
+  })();
+</script>
+</body>
+</html>
